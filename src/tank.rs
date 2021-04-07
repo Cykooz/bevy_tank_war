@@ -399,13 +399,14 @@ fn tank_throwing_system(
 
 fn remove_dead_tank_system(
     commands: &mut Commands,
+    mut materials: ResMut<Assets<ColorMaterial>>,
     audio: Res<Audio>,
     game_field: Res<GameField>,
-    mut health_query: Query<(&Health, &Position, Entity), Changed<Health>>,
+    health_query: Query<(&Health, &Position, Entity), Changed<Health>>,
 ) {
     for (health, position, entity) in health_query.iter() {
         if health.0 == 0 {
-            spawn_explosion(commands, &game_field, position.0);
+            spawn_explosion(commands, &mut materials, &game_field, position.0);
             audio.play(game_field.explosion_sound.clone());
             commands.despawn_recursive(entity);
         }

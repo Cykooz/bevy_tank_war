@@ -4,11 +4,9 @@ use bevy::prelude::*;
 use bevy_prototype_lyon::prelude::*;
 
 use crate::components::{Angle, Position, Scale, POST_GAME_UPDATE, ROUND_SETUP};
-use crate::explosion::Explosion;
 use crate::game_field::{GameField, GameState};
 use crate::landscape::LandscapeSprite;
 use crate::missile::missile_moving_system;
-use crate::tank::TankThrowing;
 use crate::{explosion, landscape, status_panel, tank};
 
 pub struct TankWarGamePlugin;
@@ -25,6 +23,7 @@ impl Plugin for TankWarGamePlugin {
             .add_system_to_stage(POST_GAME_UPDATE, update_translation.system())
             .add_system_to_stage(POST_GAME_UPDATE, update_scale.system())
             .add_system_to_stage(POST_GAME_UPDATE, update_angle.system())
+            .add_plugin(ShapePlugin)
             .add_plugin(tank::TanksPlugin)
             .add_plugin(explosion::ExplosionPlugin)
             .add_plugin(status_panel::StatusPanelPlugin);
@@ -61,15 +60,16 @@ fn setup_game_field(
 
     // Game Field border
     let border_material = materials.add(Color::rgb(1., 1., 1.).into());
-    commands.spawn(primitive(
-        border_material.clone(),
-        &mut meshes,
-        ShapeType::Rectangle {
-            width: width - 1.,
-            height: height - 1.,
-        },
-        TessellationMode::Stroke(&StrokeOptions::default()),
-        Vec3::new(1., 1., 100.),
+    let border = shapes::Rectangle {
+        width: width - 1.,
+        height: height - 1.,
+        origin: shapes::RectangleOrigin::BottomLeft,
+    };
+    commands.spawn(GeometryBuilder::build_as(
+        &border,
+        border_material,
+        TessellationMode::Stroke(StrokeOptions::default()),
+        Transform::from_translation(Vec3::new(1., 1., 100.)),
     ));
 
     let parent_entity = commands
@@ -99,32 +99,10 @@ fn setup_game_field(
     let gun_material = materials.add(gun_texture_handle.into());
 
     // Missile
-    let SpriteBundle {
-        sprite: missile_sprite,
-        mesh: missile_mesh,
-        material: missile_material,
-        ..
-    } = primitive(
-        materials.add(Color::rgb(1., 1., 1.).into()),
-        &mut meshes,
-        ShapeType::Circle(1.5),
-        TessellationMode::Fill(&FillOptions::default()),
-        Vec3::new(0., 0., 1.),
-    );
+    let missile_material = materials.add(Color::rgb(1., 1., 1.).into());
 
     // Explosion
     let explosion_color = Color::rgba(242. / 255., 68. / 255., 15. / 255., 1.);
-    let SpriteBundle {
-        sprite: explosion_sprite,
-        mesh: explosion_mesh,
-        ..
-    } = primitive(
-        materials.add(explosion_color.into()),
-        &mut meshes,
-        ShapeType::Circle(1000.),
-        TessellationMode::Fill(&FillOptions::default()),
-        Vec3::new(0., 0., 2.),
-    );
 
     // Game field
     let game_field = GameField {
@@ -139,14 +117,9 @@ fn setup_game_field(
         state: GameState::Starting,
         number_of_iteration: 0,
         font: asset_server.load("fonts/DejaVuSerif.ttf"),
-        border_material,
         tank_material,
         gun_material,
-        missile_sprite_size: missile_sprite.size,
-        missile_mesh,
         missile_material,
-        explosion_sprite_size: explosion_sprite.size,
-        explosion_mesh,
         explosion_color,
         tank_fire_sound: asset_server.load("sounds/tank_fire.ogg"),
         explosion_sound: asset_server.load("sounds/explosion1.ogg"),

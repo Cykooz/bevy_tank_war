@@ -1,6 +1,7 @@
 use std::f32::consts::PI;
 
 use bevy::prelude::*;
+use bevy_prototype_lyon::prelude::*;
 
 use crate::ballistics::Ballistics;
 use crate::components::Position;
@@ -46,14 +47,18 @@ impl Missile {
 
 pub fn spawn_missile(commands: &mut Commands, game_field: &GameField, missile: Missile) {
     let position = missile.cur_pos();
+    let missile_circle = shapes::Circle {
+        radius: 1.5,
+        ..shapes::Circle::default()
+    };
+    let missile_bundle = GeometryBuilder::build_as(
+        &missile_circle,
+        game_field.missile_material.clone(),
+        TessellationMode::Fill(FillOptions::default()),
+        Transform::from_translation(Vec3::new(position.x, position.y, 1.)),
+    );
     commands
-        .spawn(SpriteBundle {
-            sprite: Sprite::new(game_field.missile_sprite_size),
-            mesh: game_field.missile_mesh.clone(),
-            material: game_field.missile_material.clone(),
-            transform: Transform::from_translation(Vec3::new(position.x, position.y, 1.)),
-            ..Default::default()
-        })
+        .spawn(missile_bundle)
         .with(missile)
         .with(Position(position))
         .with(Parent(game_field.parent_entity));
@@ -61,6 +66,7 @@ pub fn spawn_missile(commands: &mut Commands, game_field: &GameField, missile: M
 
 pub fn missile_moving_system(
     commands: &mut Commands,
+    mut materials: ResMut<Assets<ColorMaterial>>,
     game_field: Res<GameField>,
     audio: Res<Audio>,
     mut missile_query: Query<(Entity, &mut Missile, &mut Position)>,
@@ -83,7 +89,7 @@ pub fn missile_moving_system(
 
         if is_hit {
             commands.despawn(missile_entity);
-            spawn_explosion(commands, &game_field, current_position);
+            spawn_explosion(commands, &mut materials, &game_field, current_position);
             audio.play(game_field.explosion_sound.clone());
         }
     }

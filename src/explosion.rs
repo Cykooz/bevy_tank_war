@@ -1,6 +1,7 @@
 use std::time::Instant;
 
 use bevy::prelude::*;
+use bevy_prototype_lyon::prelude::*;
 use itertools::Itertools;
 
 use crate::components::{Position, Scale, POST_GAME_UPDATE};
@@ -87,20 +88,28 @@ impl Explosion {
     }
 }
 
-pub fn spawn_explosion(commands: &mut Commands, game_field: &GameField, position: Vec2) {
+pub fn spawn_explosion(
+    commands: &mut Commands,
+    materials: &mut Assets<ColorMaterial>,
+    game_field: &GameField,
+    position: Vec2,
+) {
     let explosion = Explosion::new(50.0);
     let scale = explosion.cur_radius / 1000.0;
+
+    let explosion_circle = shapes::Circle {
+        radius: 1000.,
+        ..shapes::Circle::default()
+    };
+    let explosion_material = materials.add(game_field.explosion_color.into());
+    let explosion_bundle = GeometryBuilder::build_as(
+        &explosion_circle,
+        explosion_material,
+        TessellationMode::Fill(FillOptions::default()),
+        Transform::from_translation(Vec3::new(position.x, position.y, 2.)),
+    );
     commands
-        .spawn(SpriteBundle {
-            sprite: Sprite::new(game_field.explosion_sprite_size),
-            mesh: game_field.explosion_mesh.clone(),
-            // draw: Draw {
-            //     is_transparent: true,
-            //     ..Default::default()
-            // },
-            transform: Transform::from_translation(Vec3::new(position.x, position.y, 2.)),
-            ..Default::default()
-        })
+        .spawn(explosion_bundle)
         .with(explosion)
         .with(Position(position))
         .with(Scale(scale))
