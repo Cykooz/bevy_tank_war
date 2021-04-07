@@ -70,16 +70,18 @@ pub fn missile_moving_system(
     let size = landscape.size();
     let borders = (size.0 as i32, size.1 as i32);
     for (missile_entity, mut missile, mut missile_position) in missile_query.iter_mut() {
-        let hit_point = missile.update(borders, |x, y| {
-            landscape.is_not_empty(x, y)
-                || tank_position_query
-                    .iter()
-                    .any(|(tank, position)| tank.has_collision(position.0, (x as f32, y as f32)))
-        });
+        let is_hit = missile
+            .update(borders, |x, y| {
+                landscape.is_not_empty(x, y)
+                    || tank_position_query.iter().any(|(tank, position)| {
+                        tank.has_collision(position.0, (x as f32, y as f32))
+                    })
+            })
+            .is_some();
         let current_position = missile.cur_pos();
         missile_position.0 = current_position;
 
-        if let Some(pos) = hit_point {
+        if is_hit {
             commands.despawn(missile_entity);
             spawn_explosion(commands, &game_field, current_position);
             audio.play(game_field.explosion_sound.clone());

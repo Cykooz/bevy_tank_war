@@ -3,7 +3,7 @@ use std::f32::consts::PI;
 use bevy::prelude::*;
 
 use crate::ballistics::Ballistics;
-use crate::components::{Angle, Position};
+use crate::components::{Angle, Position, ROUND_SETUP};
 use crate::explosion::spawn_explosion;
 use crate::game_field::{GameField, GameState};
 use crate::geometry::Ellipse;
@@ -21,7 +21,7 @@ pub struct TanksPlugin;
 
 impl Plugin for TanksPlugin {
     fn build(&self, app: &mut AppBuilder) {
-        app.add_startup_system_to_stage("round_setup", setup_tanks.system())
+        app.add_startup_system_to_stage(ROUND_SETUP, setup_tanks.system())
             .add_system(tank_throwing_system.system())
             .add_system(gun_rotate_system.system())
             .add_system(gun_sprite_angle_system.system())
@@ -302,11 +302,11 @@ fn shoot_system(
     mut aiming_tanks: Query<(&Tank, &Position, Entity), With<AimingTank>>,
 ) {
     if keyboard_input.just_pressed(KeyCode::Space) {
-        audio.play(game_field.tank_fire_sound.clone());
-        let acceleration = Vec2::new(game_field.wind_power, -G);
         for (tank, tank_position, entity) in aiming_tanks.iter_mut() {
+            let acceleration = Vec2::new(game_field.wind_power, -G);
             let missile = tank.shoot(tank_position.0, acceleration);
             spawn_missile(commands, &game_field, missile);
+            audio.play(game_field.tank_fire_sound.clone());
             commands.remove_one::<AimingTank>(entity);
         }
     }

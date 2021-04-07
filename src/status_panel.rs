@@ -1,5 +1,6 @@
 use bevy::prelude::*;
 
+use crate::components::ROUND_SETUP;
 use crate::game_field::GameField;
 use crate::tank::{CurrentTank, Health, Tank};
 
@@ -7,7 +8,7 @@ pub struct StatusPanelPlugin;
 
 impl Plugin for StatusPanelPlugin {
     fn build(&self, app: &mut AppBuilder) {
-        app.add_startup_system_to_stage("round_setup", setup_status_panel.system())
+        app.add_startup_system_to_stage(ROUND_SETUP, setup_status_panel.system())
             .add_system(update_gun_angle_text.system())
             .add_system(update_gun_power_text.system())
             .add_system(update_wind_power_text.system())

@@ -3,7 +3,7 @@ use std::f32::consts::PI;
 use bevy::prelude::*;
 use bevy_prototype_lyon::prelude::*;
 
-use crate::components::{Angle, Position, Scale, POST_GAME_UPDATE};
+use crate::components::{Angle, Position, Scale, POST_GAME_UPDATE, ROUND_SETUP};
 use crate::explosion::Explosion;
 use crate::game_field::{GameField, GameState};
 use crate::landscape::LandscapeSprite;
@@ -17,7 +17,7 @@ impl Plugin for TankWarGamePlugin {
     fn build(&self, app: &mut AppBuilder) {
         app.add_startup_system(setup_camera.system())
             .add_startup_system(setup_game_field.system())
-            .add_startup_stage("round_setup", SystemStage::parallel())
+            .add_startup_stage(ROUND_SETUP, SystemStage::parallel())
             .add_stage_after(stage::UPDATE, POST_GAME_UPDATE, SystemStage::parallel())
             .add_system(landscape::update_landscape.system())
             .add_system(landscape::update_landscape_texture.system())
