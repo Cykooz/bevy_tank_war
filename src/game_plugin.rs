@@ -48,7 +48,6 @@ fn setup_game_field(
     commands: &mut Commands,
     mut materials: ResMut<Assets<ColorMaterial>>,
     mut textures: ResMut<Assets<Texture>>,
-    mut meshes: ResMut<Assets<Mesh>>,
     asset_server: Res<AssetServer>,
     window: Res<WindowDescriptor>,
 ) {
@@ -100,9 +99,29 @@ fn setup_game_field(
 
     // Missile
     let missile_material = materials.add(Color::rgb(1., 1., 1.).into());
+    let missile_circle = shapes::Circle {
+        radius: 1.5,
+        ..shapes::Circle::default()
+    };
+    let missile_bundle = GeometryBuilder::build_as(
+        &missile_circle,
+        missile_material.clone(),
+        TessellationMode::Fill(FillOptions::default()),
+        Transform::from_translation(Vec3::new(0., 0., 1.)),
+    );
 
     // Explosion
     let explosion_color = Color::rgba(242. / 255., 68. / 255., 15. / 255., 1.);
+    let explosion_circle = shapes::Circle {
+        radius: 1000.,
+        ..shapes::Circle::default()
+    };
+    let explosion_bundle = GeometryBuilder::build_as(
+        &explosion_circle,
+        materials.add(explosion_color.into()),
+        TessellationMode::Fill(FillOptions::default()),
+        Transform::from_translation(Vec3::new(0., 0., 2.)),
+    );
 
     // Game field
     let game_field = GameField {
@@ -119,8 +138,9 @@ fn setup_game_field(
         font: asset_server.load("fonts/DejaVuSerif.ttf"),
         tank_material,
         gun_material,
-        missile_material,
+        missile_bundle,
         explosion_color,
+        explosion_bundle,
         tank_fire_sound: asset_server.load("sounds/tank_fire.ogg"),
         explosion_sound: asset_server.load("sounds/explosion1.ogg"),
     };

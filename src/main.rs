@@ -1,7 +1,4 @@
-use bevy::{
-    diagnostic::{FrameTimeDiagnosticsPlugin, PrintDiagnosticsPlugin},
-    prelude::*,
-};
+use bevy::prelude::*;
 use bevy_tank_war::TankWarGamePlugin;
 
 fn main() {

@@ -3,6 +3,7 @@ use rand::seq::SliceRandom;
 use rand::Rng;
 
 use crate::landscape::Landscape;
+use bevy_prototype_lyon::entity::ShapeBundle;
 
 /// A damage per one pixel of height with which tank was dropped.
 const TANK_THROWING_DAMAGE_POWER: f32 = 0.1;
@@ -23,7 +24,6 @@ impl Default for GameState {
     }
 }
 
-#[derive(Debug)]
 pub struct GameField {
     pub width: u16,
     pub height: u16,
@@ -38,8 +38,9 @@ pub struct GameField {
     pub font: Handle<Font>,
     pub tank_material: Handle<ColorMaterial>,
     pub gun_material: Handle<ColorMaterial>,
-    pub missile_material: Handle<ColorMaterial>,
+    pub missile_bundle: ShapeBundle,
     pub explosion_color: Color,
+    pub explosion_bundle: ShapeBundle,
     pub tank_fire_sound: Handle<AudioSource>,
     pub explosion_sound: Handle<AudioSource>,
 }

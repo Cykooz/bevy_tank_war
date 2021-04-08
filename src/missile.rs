@@ -1,12 +1,12 @@
 use std::f32::consts::PI;
 
 use bevy::prelude::*;
-use bevy_prototype_lyon::prelude::*;
 
 use crate::ballistics::Ballistics;
 use crate::components::Position;
 use crate::explosion::spawn_explosion;
 use crate::game_field::GameField;
+use crate::geometry::clone_shape_bundle;
 use crate::tank::Tank;
 
 const TIME_SCALE: f32 = 3.0;
@@ -47,14 +47,8 @@ impl Missile {
 
 pub fn spawn_missile(commands: &mut Commands, game_field: &GameField, missile: Missile) {
     let position = missile.cur_pos();
-    let missile_circle = shapes::Circle {
-        radius: 1.5,
-        ..shapes::Circle::default()
-    };
-    let missile_bundle = GeometryBuilder::build_as(
-        &missile_circle,
-        game_field.missile_material.clone(),
-        TessellationMode::Fill(FillOptions::default()),
+    let missile_bundle = clone_shape_bundle(
+        &game_field.missile_bundle,
         Transform::from_translation(Vec3::new(position.x, position.y, 1.)),
     );
     commands

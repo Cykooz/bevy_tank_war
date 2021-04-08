@@ -1,12 +1,11 @@
 use std::time::Instant;
 
 use bevy::prelude::*;
-use bevy_prototype_lyon::prelude::*;
 use itertools::Itertools;
 
 use crate::components::{Position, Scale, POST_GAME_UPDATE};
 use crate::game_field::{GameField, GameState};
-use crate::geometry::Circle;
+use crate::geometry::{clone_shape_bundle, Circle};
 use crate::landscape::Landscape;
 use crate::tank::{Health, Tank};
 
@@ -96,18 +95,11 @@ pub fn spawn_explosion(
 ) {
     let explosion = Explosion::new(50.0);
     let scale = explosion.cur_radius / 1000.0;
-
-    let explosion_circle = shapes::Circle {
-        radius: 1000.,
-        ..shapes::Circle::default()
-    };
-    let explosion_material = materials.add(game_field.explosion_color.into());
-    let explosion_bundle = GeometryBuilder::build_as(
-        &explosion_circle,
-        explosion_material,
-        TessellationMode::Fill(FillOptions::default()),
+    let mut explosion_bundle = clone_shape_bundle(
+        &game_field.explosion_bundle,
         Transform::from_translation(Vec3::new(position.x, position.y, 2.)),
     );
+    explosion_bundle.material = materials.add(game_field.explosion_color.into());
     commands
         .spawn(explosion_bundle)
         .with(explosion)
