@@ -4,7 +4,7 @@ pub const BASE_VERTEX_SHADER: &str = include_str!("shaders/basic.glslv");
 pub const FRAGMENT_SHADER: &str = include_str!("shaders/hue.glslf");
 
 fn setup(
-    commands: &mut Commands,
+    mut commands: Commands,
     mut pipelines: ResMut<Assets<PipelineDescriptor>>,
     mut shaders: ResMut<Assets<Shader>>,
     mut meshes: ResMut<Assets<Mesh>>,

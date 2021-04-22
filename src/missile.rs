@@ -52,19 +52,18 @@ pub fn spawn_missile(commands: &mut Commands, game_field: &GameField, missile: M
         Transform::from_translation(Vec3::new(position.x, position.y, 1.)),
     );
     commands
-        .spawn(missile_bundle)
-        .with(missile)
-        .with(Position(position))
-        .with(Parent(game_field.parent_entity));
+        .spawn_bundle(missile_bundle)
+        .insert(missile)
+        .insert(Position(position))
+        .insert(Parent(game_field.parent_entity));
 }
 
 pub fn missile_moving_system(
-    commands: &mut Commands,
-    mut materials: ResMut<Assets<ColorMaterial>>,
+    mut commands: Commands,
     game_field: Res<GameField>,
     audio: Res<Audio>,
+    tank_position_query: Query<(&Tank, &Position), Without<Missile>>,
     mut missile_query: Query<(Entity, &mut Missile, &mut Position)>,
-    tank_position_query: Query<(&Tank, &Position)>,
 ) {
     let landscape = &game_field.landscape;
     let size = landscape.size();
@@ -82,8 +81,8 @@ pub fn missile_moving_system(
         missile_position.0 = current_position;
 
         if is_hit {
-            commands.despawn(missile_entity);
-            spawn_explosion(commands, &mut materials, &game_field, current_position);
+            commands.entity(missile_entity).despawn();
+            spawn_explosion(&mut commands, &game_field, current_position);
             audio.play(game_field.explosion_sound.clone());
         }
     }

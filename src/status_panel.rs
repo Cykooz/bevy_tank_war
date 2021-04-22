@@ -24,13 +24,13 @@ pub struct PlayerNumberText;
 pub struct TankHealthText;
 
 pub fn setup_status_panel(
-    commands: &mut Commands,
+    mut commands: Commands,
     mut materials: ResMut<Assets<ColorMaterial>>,
     game_field: Res<GameField>,
     window: Res<WindowDescriptor>,
 ) {
     let panel_bottom = window.height - 30.;
-    commands.spawn(NodeBundle {
+    commands.spawn_bundle(NodeBundle {
         style: Style {
             size: Size::new(Val::Percent(100.0), Val::Px(30.0)),
             position_type: PositionType::Absolute,
@@ -48,53 +48,53 @@ pub fn setup_status_panel(
     let text_bottom = panel_bottom + 4.;
     // Gun Angle
     commands
-        .spawn(spawn_text(
+        .spawn_bundle(spawn_text(
             "Angle:",
             10.,
             text_bottom,
             game_field.font.clone(),
         ))
-        .with(GunAngleText);
+        .insert(GunAngleText);
 
     // Gun Power
     commands
-        .spawn(spawn_text(
+        .spawn_bundle(spawn_text(
             "Power:",
             110.,
             text_bottom,
             game_field.font.clone(),
         ))
-        .with(GunPowerText);
+        .insert(GunPowerText);
 
     // Wind Power
     commands
-        .spawn(spawn_text(
+        .spawn_bundle(spawn_text(
             "Wind:",
             220.,
             text_bottom,
             game_field.font.clone(),
         ))
-        .with(WindPowerText);
+        .insert(WindPowerText);
 
     // Player number
     commands
-        .spawn(spawn_text(
+        .spawn_bundle(spawn_text(
             "Player:",
             440.,
             text_bottom,
             game_field.font.clone(),
         ))
-        .with(PlayerNumberText);
+        .insert(PlayerNumberText);
 
     // Tank health
     commands
-        .spawn(spawn_text(
+        .spawn_bundle(spawn_text(
             "Health:",
             540.,
             text_bottom,
             game_field.font.clone(),
         ))
-        .with(TankHealthText);
+        .insert(TankHealthText);
 }
 
 fn spawn_text(
@@ -113,15 +113,17 @@ fn spawn_text(
             },
             ..Default::default()
         },
-        text: Text {
-            value: text_value.to_string(),
-            font,
-            style: TextStyle {
+        text: Text::with_section(
+            // Accepts a `String` or any type that converts into a `String`, such as `&str`
+            text_value.to_string(),
+            TextStyle {
+                font,
                 font_size: 20.0,
                 color: Color::WHITE,
-                ..Default::default()
             },
-        },
+            // Note: You can use `Default::default()` in place of the `TextAlignment`
+            Default::default(),
+        ),
         ..Default::default()
     }
 }
@@ -132,7 +134,7 @@ pub fn update_gun_angle_text(
 ) {
     if let Some(tank) = current_tank_query.iter().next() {
         if let Some(mut text) = text_query.iter_mut().next() {
-            text.value = format!("Angle: {}", tank.gun_angle_deg());
+            text.sections[0].value = format!("Angle: {}", tank.gun_angle_deg());
         }
     }
 }
@@ -143,7 +145,7 @@ pub fn update_gun_power_text(
 ) {
     if let Some(tank) = current_tank_query.iter().next() {
         if let Some(mut text) = text_query.iter_mut().next() {
-            text.value = format!("Power: {}", tank.power);
+            text.sections[0].value = format!("Power: {}", tank.power);
         }
     }
 }
@@ -153,7 +155,7 @@ pub fn update_wind_power_text(
     mut text_query: Query<&mut Text, With<WindPowerText>>,
 ) {
     if let Some(mut text) = text_query.iter_mut().next() {
-        text.value = format!("Wind: {}", game_filed.wind_power * 10.0);
+        text.sections[0].value = format!("Wind: {}", game_filed.wind_power * 10.0);
     }
 }
 
@@ -163,7 +165,7 @@ pub fn update_player_number_text(
 ) {
     if let Some(tank) = current_tank_query.iter().next() {
         if let Some(mut text) = text_query.iter_mut().next() {
-            text.value = format!("Player: {}", tank.player_number);
+            text.sections[0].value = format!("Player: {}", tank.player_number);
         }
     }
 }
@@ -174,7 +176,7 @@ pub fn update_tank_health_text(
 ) {
     if let Some(health) = health_query.iter().next() {
         if let Some(mut text) = text_query.iter_mut().next() {
-            text.value = format!("Health: {}", health.0);
+            text.sections[0].value = format!("Health: {}", health.0);
         }
     }
 }

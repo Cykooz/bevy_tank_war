@@ -15,8 +15,9 @@ impl Plugin for TankWarGamePlugin {
     fn build(&self, app: &mut AppBuilder) {
         app.add_startup_system(setup_camera.system())
             .add_startup_system(setup_game_field.system())
+            .add_system(set_texture_filtration.system())
             .add_startup_stage(ROUND_SETUP, SystemStage::parallel())
-            .add_stage_after(stage::UPDATE, POST_GAME_UPDATE, SystemStage::parallel())
+            .add_stage_after(CoreStage::Update, POST_GAME_UPDATE, SystemStage::parallel())
             .add_system(landscape::update_landscape.system())
             .add_system(landscape::update_landscape_texture.system())
             .add_system(missile_moving_system.system())
@@ -30,22 +31,19 @@ impl Plugin for TankWarGamePlugin {
     }
 }
 
-fn setup_camera(commands: &mut Commands, window: Res<WindowDescriptor>) {
+fn setup_camera(mut commands: Commands, window: Res<WindowDescriptor>) {
     let width = window.width as f32;
     let height = window.height as f32;
 
-    let mut camera = Camera2dBundle::default();
-    camera.transform.translation = Vec3::new(
-        width / 2. + 0.5,
-        height / 2. + 0.5,
-        camera.transform.translation.z,
-    );
-    commands.spawn(camera);
-    commands.spawn(CameraUiBundle::default());
+    let mut camera = OrthographicCameraBundle::new_2d();
+    camera.transform.translation =
+        Vec3::new(width / 2., height / 2., camera.transform.translation.z);
+    commands.spawn_bundle(camera);
+    commands.spawn_bundle(UiCameraBundle::default());
 }
 
 fn setup_game_field(
-    commands: &mut Commands,
+    mut commands: Commands,
     mut materials: ResMut<Assets<ColorMaterial>>,
     mut textures: ResMut<Assets<Texture>>,
     asset_server: Res<AssetServer>,
@@ -58,39 +56,38 @@ fn setup_game_field(
     let field_height = (height - 2.) as u16;
 
     // Game Field border
-    let border_material = materials.add(Color::rgb(1., 1., 1.).into());
     let border = shapes::Rectangle {
         width: width - 1.,
         height: height - 1.,
         origin: shapes::RectangleOrigin::BottomLeft,
     };
-    commands.spawn(GeometryBuilder::build_as(
+    let border_color = ShapeColors::new(Color::rgb(1., 1., 1.));
+    commands.spawn_bundle(GeometryBuilder::build_as(
         &border,
-        border_material,
-        TessellationMode::Stroke(StrokeOptions::default()),
-        Transform::from_translation(Vec3::new(1., 1., 100.)),
+        border_color,
+        DrawMode::Stroke(StrokeOptions::default()),
+        Transform::from_translation(Vec3::new(0.5, 0.5, 100.)),
     ));
 
     let parent_entity = commands
-        .spawn((
-            Transform::from_translation(Vec3::new(0.5, 0.5, 0.)),
+        .spawn_bundle((
+            Transform::from_translation(Vec3::new(0., 0., 0.)),
             GlobalTransform::identity(),
         ))
-        .current_entity()
-        .unwrap();
+        .id();
 
     // Landscape
     let game_landscape =
         landscape::Landscape::new(field_width, field_height, &mut textures).unwrap();
     let position = Vec3::new(field_width as f32 / 2., field_height as f32 / 2., 0.);
     commands
-        .spawn(SpriteBundle {
+        .spawn_bundle(SpriteBundle {
             material: materials.add(game_landscape.texture_handle().into()),
             transform: Transform::from_translation(position),
             ..Default::default()
         })
-        .with(LandscapeSprite)
-        .with(Parent(parent_entity));
+        .insert(LandscapeSprite)
+        .insert(Parent(parent_entity));
 
     let tank_texture_handle = asset_server.load("sprites/tank.png");
     let tank_material = materials.add(tank_texture_handle.into());
@@ -98,29 +95,16 @@ fn setup_game_field(
     let gun_material = materials.add(gun_texture_handle.into());
 
     // Missile
-    let missile_material = materials.add(Color::rgb(1., 1., 1.).into());
+    let missile_colors = ShapeColors::new(Color::rgb(1., 1., 1.));
     let missile_circle = shapes::Circle {
         radius: 1.5,
         ..shapes::Circle::default()
     };
     let missile_bundle = GeometryBuilder::build_as(
         &missile_circle,
-        missile_material.clone(),
-        TessellationMode::Fill(FillOptions::default()),
+        missile_colors,
+        DrawMode::Fill(FillOptions::default()),
         Transform::from_translation(Vec3::new(0., 0., 1.)),
-    );
-
-    // Explosion
-    let explosion_color = Color::rgba(242. / 255., 68. / 255., 15. / 255., 1.);
-    let explosion_circle = shapes::Circle {
-        radius: 1000.,
-        ..shapes::Circle::default()
-    };
-    let explosion_bundle = GeometryBuilder::build_as(
-        &explosion_circle,
-        materials.add(explosion_color.into()),
-        TessellationMode::Fill(FillOptions::default()),
-        Transform::from_translation(Vec3::new(0., 0., 2.)),
     );
 
     // Game field
@@ -139,12 +123,23 @@ fn setup_game_field(
         tank_material,
         gun_material,
         missile_bundle,
-        explosion_color,
-        explosion_bundle,
         tank_fire_sound: asset_server.load("sounds/tank_fire.ogg"),
         explosion_sound: asset_server.load("sounds/explosion1.ogg"),
     };
     commands.insert_resource(game_field);
+}
+
+fn set_texture_filtration(
+    mut textures: ResMut<Assets<Texture>>,
+    mut event_reader: EventReader<AssetEvent<Texture>>,
+) {
+    for event in event_reader.iter() {
+        if let AssetEvent::Created { handle } = event {
+            if let Some(texture) = textures.get_mut(handle) {
+                texture.sampler.mag_filter = bevy::render::texture::FilterMode::Linear;
+            }
+        }
+    }
 }
 
 fn update_translation(mut query: Query<(&Position, &mut Transform), (Changed<Position>,)>) {

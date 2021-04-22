@@ -229,14 +229,14 @@ impl Landscape {
 }
 
 pub fn update_landscape(
-    commands: &mut Commands,
+    mut commands: Commands,
     mut game_field: ResMut<GameField>,
     tanks_query: Query<(Entity, &Tank, &Position), (Without<TankThrowing>,)>,
 ) {
     let landscape = &mut game_field.landscape;
     if landscape.update() {
         for (entity, tank, position) in tanks_query.iter() {
-            commands.insert_one(entity, tank.throw_down(position.0));
+            commands.entity(entity).insert(tank.throw_down(position.0));
         }
     }
 }

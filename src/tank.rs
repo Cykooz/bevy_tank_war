@@ -190,7 +190,7 @@ impl Tank {
     }
 }
 
-fn setup_tanks(commands: &mut Commands, mut game_field: ResMut<GameField>) {
+fn setup_tanks(mut commands: Commands, mut game_field: ResMut<GameField>) {
     let tank_material = game_field.tank_material.clone();
     let gun_material = game_field.gun_material.clone();
 
@@ -198,9 +198,11 @@ fn setup_tanks(commands: &mut Commands, mut game_field: ResMut<GameField>) {
     game_field.start_round(count_of_tanks);
 
     let tank_size = Tank::size();
-    let size_between_tanks = (game_field.width as f32 - 200.) / (count_of_tanks - 1) as f32;
+    let padding: f32 = 100.5;
+    let size_between_tanks =
+        ((game_field.width as f32 - 2. * padding) / (count_of_tanks - 1) as f32).round();
     let tank_y = (game_field.height - 50) as f32 + tank_size.y / 2.;
-    let start_position = Vec2::new(100., tank_y);
+    let start_position = Vec2::new(padding, tank_y);
 
     let parent_entity = game_field.parent_entity;
     let player_numbers = game_field.player_numbers.clone();
@@ -210,30 +212,33 @@ fn setup_tanks(commands: &mut Commands, mut game_field: ResMut<GameField>) {
         let tank_position = start_position + Vec2::new(size_between_tanks * i as f32, 0.);
         let tank_throwing = tank.throw_down(tank_position);
 
-        commands
-            .spawn(SpriteBundle {
-                material: tank_material.clone(),
-                ..Default::default()
-            })
-            .with(tank)
-            .with(Health(100))
-            .with(Position(tank_position))
-            .with(tank_throwing)
-            .with(Parent(parent_entity))
+        let sprite_bundle = SpriteBundle {
+            material: tank_material.clone(),
+            ..Default::default()
+        };
+
+        let mut entity_commands = commands.spawn_bundle(sprite_bundle);
+        entity_commands
+            .insert(tank)
+            .insert(Health(100))
+            .insert(Position(tank_position))
+            .insert(tank_throwing)
+            .insert(Parent(parent_entity))
             .with_children(|parent| {
                 parent
-                    .spawn(SpriteBundle {
+                    .spawn_bundle(SpriteBundle {
                         material: gun_material.clone(),
                         ..Default::default()
                     })
-                    .with(TankGun)
-                    .with(Angle(0.));
-            });
+                    .insert(TankGun)
+                    .insert(Angle(0.));
+            })
+            .id();
         if i == 0 {
-            commands.with(CurrentTank).with(AimingTank);
+            entity_commands.insert(CurrentTank).insert(AimingTank);
         }
 
-        let tank_entity = commands.current_entity().unwrap();
+        let tank_entity = entity_commands.id();
         game_field.tanks.push(Some(tank_entity));
     }
 }
@@ -295,7 +300,7 @@ pub fn gun_power_system(
 }
 
 fn shoot_system(
-    commands: &mut Commands,
+    mut commands: Commands,
     keyboard_input: ResMut<Input<KeyCode>>,
     audio: Res<Audio>,
     game_field: Res<GameField>,
@@ -305,15 +310,15 @@ fn shoot_system(
         for (tank, tank_position, entity) in aiming_tanks.iter_mut() {
             let acceleration = Vec2::new(game_field.wind_power, -G);
             let missile = tank.shoot(tank_position.0, acceleration);
-            spawn_missile(commands, &game_field, missile);
+            spawn_missile(&mut commands, &game_field, missile);
             audio.play(game_field.tank_fire_sound.clone());
-            commands.remove_one::<AimingTank>(entity);
+            commands.entity(entity).remove::<AimingTank>();
         }
     }
 }
 
 fn tank_throwing_system(
-    commands: &mut Commands,
+    mut commands: Commands,
     mut game_field: ResMut<GameField>,
     mut tanks_query: Query<(Entity, &mut TankThrowing, &mut Position, &mut Health)>,
     cur_tank_query: Query<(Entity, &CurrentTank)>,
@@ -363,7 +368,7 @@ fn tank_throwing_system(
 
         if stop_throwing {
             placed_tanks_count += 1;
-            commands.remove_one::<TankThrowing>(entity);
+            commands.entity(entity).remove::<TankThrowing>();
             match game_state {
                 GameState::Starting => {}
                 _ => {
@@ -387,28 +392,30 @@ fn tank_throwing_system(
         } else if dead_tanks_count == 0 {
             // Switch current tank
             for (cur_tank_entity, _) in cur_tank_query.iter() {
-                commands.remove_one::<CurrentTank>(cur_tank_entity);
-                commands.remove_one::<AimingTank>(cur_tank_entity);
+                commands.entity(cur_tank_entity).remove::<CurrentTank>();
+                commands.entity(cur_tank_entity).remove::<AimingTank>();
             }
             if let Some(new_current_entity) = game_field.switch_current_tank() {
-                commands.insert(new_current_entity, (CurrentTank, AimingTank));
+                commands
+                    .entity(new_current_entity)
+                    .insert(CurrentTank)
+                    .insert(AimingTank);
             }
         }
     }
 }
 
 fn remove_dead_tank_system(
-    commands: &mut Commands,
-    mut materials: ResMut<Assets<ColorMaterial>>,
+    mut commands: Commands,
     audio: Res<Audio>,
     game_field: Res<GameField>,
     health_query: Query<(&Health, &Position, Entity), Changed<Health>>,
 ) {
     for (health, position, entity) in health_query.iter() {
         if health.0 == 0 {
-            spawn_explosion(commands, &mut materials, &game_field, position.0);
+            spawn_explosion(&mut commands, &game_field, position.0);
             audio.play(game_field.explosion_sound.clone());
-            commands.despawn_recursive(entity);
+            commands.entity(entity).despawn_recursive();
         }
     }
 }

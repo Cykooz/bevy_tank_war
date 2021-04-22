@@ -5,8 +5,8 @@ fn main() {
     env_logger::init();
 
     App::build()
-        .add_resource(Msaa { samples: 4 })
-        .add_resource(WindowDescriptor {
+        .insert_resource(Msaa { samples: 4 })
+        .insert_resource(WindowDescriptor {
             title: "Tank War - Rust edition".to_string(),
             width: 1024.,
             height: 768.,

@@ -1,11 +1,13 @@
 use std::time::Instant;
 
 use bevy::prelude::*;
+use bevy::render::mesh::VertexAttributeValues;
+use bevy_prototype_lyon::prelude::*;
 use itertools::Itertools;
 
 use crate::components::{Position, Scale, POST_GAME_UPDATE};
 use crate::game_field::{GameField, GameState};
-use crate::geometry::{clone_shape_bundle, Circle};
+use crate::geometry::Circle;
 use crate::landscape::Landscape;
 use crate::tank::{Health, Tank};
 
@@ -87,29 +89,33 @@ impl Explosion {
     }
 }
 
-pub fn spawn_explosion(
-    commands: &mut Commands,
-    materials: &mut Assets<ColorMaterial>,
-    game_field: &GameField,
-    position: Vec2,
-) {
+pub fn spawn_explosion(commands: &mut Commands, game_field: &GameField, position: Vec2) {
     let explosion = Explosion::new(50.0);
     let scale = explosion.cur_radius / 1000.0;
-    let mut explosion_bundle = clone_shape_bundle(
-        &game_field.explosion_bundle,
+
+    let color = Color::rgba(242. / 255., 68. / 255., 15. / 255., 1.);
+    let explosion_colors = ShapeColors::new(color);
+    let explosion_circle = shapes::Circle {
+        radius: 1000.,
+        ..shapes::Circle::default()
+    };
+    let explosion_bundle = GeometryBuilder::build_as(
+        &explosion_circle,
+        explosion_colors,
+        DrawMode::Fill(FillOptions::default()),
         Transform::from_translation(Vec3::new(position.x, position.y, 2.)),
     );
-    explosion_bundle.material = materials.add(game_field.explosion_color.into());
+
     commands
-        .spawn(explosion_bundle)
-        .with(explosion)
-        .with(Position(position))
-        .with(Scale(scale))
-        .with(Parent(game_field.parent_entity));
+        .spawn_bundle(explosion_bundle)
+        .insert(explosion)
+        .insert(Position(position))
+        .insert(Scale(scale))
+        .insert(Parent(game_field.parent_entity));
 }
 
 pub fn update_explosion_system(
-    commands: &mut Commands,
+    mut commands: Commands,
     mut game_field: ResMut<GameField>,
     mut explosions_query: Query<(&mut Explosion, &mut Scale, &Position, Entity)>,
     mut tanks_query: Query<(&Tank, &mut Health, &Position)>,
@@ -136,7 +142,7 @@ pub fn update_explosion_system(
 
         if explosion.cur_opacity == 0. {
             // Remove explosion entity
-            commands.despawn(entity);
+            commands.entity(entity).despawn();
             remove_explosions += 1;
 
             // Check intersection of explosion with tanks and decrease its health.
@@ -157,15 +163,16 @@ pub fn update_explosion_system(
 }
 
 pub fn update_explosion_alpha_system(
-    mut materials: ResMut<Assets<ColorMaterial>>,
-    game_field: Res<GameField>,
-    query: Query<(&Explosion, &Handle<ColorMaterial>), (Changed<Scale>,)>,
+    mut meshes: ResMut<Assets<Mesh>>,
+    query: Query<(&Explosion, &Handle<Mesh>), (Changed<Scale>,)>,
 ) {
-    for (explosion, material_handler) in query.iter() {
-        if let Some(material) = materials.get_mut(material_handler) {
-            let mut color = game_field.explosion_color;
-            color.set_a(explosion.cur_opacity);
-            material.color = color;
+    for (explosion, mesh_handle) in query.iter() {
+        if let Some(mesh) = meshes.get_mut(mesh_handle) {
+            if let Some(VertexAttributeValues::Float4(colors)) =
+                mesh.attribute_mut(Mesh::ATTRIBUTE_COLOR)
+            {
+                colors.iter_mut().for_each(|c| c[3] = explosion.cur_opacity);
+            }
         }
     }
 }

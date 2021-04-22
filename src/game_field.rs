@@ -39,8 +39,6 @@ pub struct GameField {
     pub tank_material: Handle<ColorMaterial>,
     pub gun_material: Handle<ColorMaterial>,
     pub missile_bundle: ShapeBundle,
-    pub explosion_color: Color,
-    pub explosion_bundle: ShapeBundle,
     pub tank_fire_sound: Handle<AudioSource>,
     pub explosion_sound: Handle<AudioSource>,
 }
