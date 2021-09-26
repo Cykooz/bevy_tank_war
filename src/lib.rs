@@ -9,6 +9,8 @@ mod geometry;
 mod landscape;
 mod missile;
 //mod shaders;
+mod collider;
+mod custom_sprite;
 mod status_panel;
 mod tank;
 

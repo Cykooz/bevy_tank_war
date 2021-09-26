@@ -7,7 +7,10 @@ use crate::components::{Angle, Position, ROUND_SETUP};
 use crate::explosion::spawn_explosion;
 use crate::game_field::{GameField, GameState};
 use crate::geometry::Ellipse;
-use crate::missile::{spawn_missile, Missile};
+use crate::landscape;
+use crate::missile::{
+    spawn_missile, HasCollision, Missile, MissileMovedEvent, MISSILE_MOVED_LABEL,
+};
 use crate::{G, MAX_PLAYERS_COUNT};
 
 const TANK_SIZE: f32 = 41.;
@@ -22,12 +25,27 @@ pub struct TanksPlugin;
 impl Plugin for TanksPlugin {
     fn build(&self, app: &mut AppBuilder) {
         app.add_startup_system_to_stage(ROUND_SETUP, setup_tanks.system())
-            .add_system(tank_throwing_system.system())
             .add_system(gun_rotate_system.system())
             .add_system(gun_sprite_angle_system.system())
             .add_system(gun_power_system.system())
             .add_system(shoot_system.system())
-            .add_system(remove_dead_tank_system.system());
+            .add_system_set(
+                SystemSet::new()
+                    .label("tanks_processing")
+                    .with_system(throw_down_tanks_system.system().label("throw_down_tanks"))
+                    .with_system(
+                        tanks_throwing_system
+                            .system()
+                            .label("tanks_throwing")
+                            .after("throw_down_tanks"),
+                    )
+                    .with_system(remove_dead_tank_system.system().after("tanks_throwing")),
+            )
+            .add_system(
+                missile_collides_with_tanks_system
+                    .system()
+                    .after(MISSILE_MOVED_LABEL),
+            );
     }
 }
 
@@ -190,6 +208,111 @@ impl Tank {
     }
 }
 
+struct TankCollider {
+    body_bounds: Vec<Ellipse>,
+    gun_bounds: Vec<Ellipse>,
+    gun_angle_deg: f32,
+}
+
+impl TankCollider {
+    pub fn new() -> Self {
+        let body_bounds = vec![
+            Ellipse::new((0., -5.5), 9.5, 9.),    // top bound
+            Ellipse::new((-9.5, -13.), 10., 6.5), // left bound
+            Ellipse::new((9.5, -13.), 10., 6.5),  // right bound
+            Ellipse::new((0., -13.), 19.5, 7.5),  // center bound
+        ];
+        let gun_bounds = vec![
+            Ellipse::new((0., 14.), 2.5, 5.),
+            Ellipse::new((0., 5.), 2., 8.),
+        ];
+        Self {
+            body_bounds,
+            gun_bounds,
+            gun_angle_deg: 0.,
+        }
+    }
+}
+
+impl HasCollision for TankCollider {
+    fn has_collision(&self, entity_position: Vec2, point: Vec2) -> bool {
+        let local_point = point - entity_position;
+        // If point inside of tank's rectangle
+        if local_point.abs().max_element() > TANK_SIZE / 2. {
+            return false;
+        }
+
+        // Check tank's body bounds
+        if self
+            .body_bounds
+            .iter()
+            .any(|b| b.point_position(local_point) <= 0.)
+        {
+            return true;
+        }
+
+        // Check tank's gun bounds.
+        // Rotate local_point into coordinate system of tank's gun.
+        let rotation = Quat::from_rotation_z(self.gun_angle_deg * PI / 180.);
+        let rotated_point = rotation.mul_vec3(Vec3::new(local_point.x, local_point.y, 0.));
+        let rotated_point = Vec2::new(rotated_point.x, rotated_point.y);
+        self.gun_bounds
+            .iter()
+            .any(|b| b.point_position(rotated_point) <= 0.)
+    }
+}
+
+#[derive(Bundle, Clone)]
+struct TankBundle {
+    tank: Tank,
+    health: Health,
+    position: Position,
+    tank_throwing: TankThrowing,
+    #[bundle]
+    sprite: SpriteBundle,
+}
+
+impl TankBundle {
+    pub fn new(player_number: u8, position: Vec2, material: Handle<ColorMaterial>) -> Self {
+        let hue_offset = (player_number as u16 - 1) * (360 / MAX_PLAYERS_COUNT as u16);
+        let tank = Tank::new(player_number, hue_offset);
+        let tank_throwing = tank.throw_down(position);
+        let sprite = SpriteBundle {
+            material,
+            ..Default::default()
+        };
+        Self {
+            tank,
+            health: Health(100),
+            position: Position(position),
+            tank_throwing,
+            sprite,
+        }
+    }
+}
+
+#[derive(Bundle, Clone)]
+struct TankGunBundle {
+    gun: TankGun,
+    angle: Angle,
+    #[bundle]
+    sprite: SpriteBundle,
+}
+
+impl TankGunBundle {
+    pub fn new(material: Handle<ColorMaterial>) -> Self {
+        let sprite = SpriteBundle {
+            material,
+            ..Default::default()
+        };
+        Self {
+            gun: TankGun,
+            angle: Angle(0.),
+            sprite,
+        }
+    }
+}
+
 fn setup_tanks(mut commands: Commands, mut game_field: ResMut<GameField>) {
     let tank_material = game_field.tank_material.clone();
     let gun_material = game_field.gun_material.clone();
@@ -207,31 +330,17 @@ fn setup_tanks(mut commands: Commands, mut game_field: ResMut<GameField>) {
     let parent_entity = game_field.parent_entity;
     let player_numbers = game_field.player_numbers.clone();
     for (i, &player_number) in player_numbers.iter().enumerate() {
-        let hue_offset = (player_number as u16 - 1) * (360 / MAX_PLAYERS_COUNT as u16);
-        let tank = Tank::new(player_number, hue_offset);
         let tank_position = start_position + Vec2::new(size_between_tanks * i as f32, 0.);
-        let tank_throwing = tank.throw_down(tank_position);
 
-        let sprite_bundle = SpriteBundle {
-            material: tank_material.clone(),
-            ..Default::default()
-        };
-
-        let mut entity_commands = commands.spawn_bundle(sprite_bundle);
+        let mut entity_commands = commands.spawn_bundle(TankBundle::new(
+            player_number,
+            tank_position,
+            tank_material.clone(),
+        ));
         entity_commands
-            .insert(tank)
-            .insert(Health(100))
-            .insert(Position(tank_position))
-            .insert(tank_throwing)
             .insert(Parent(parent_entity))
             .with_children(|parent| {
-                parent
-                    .spawn_bundle(SpriteBundle {
-                        material: gun_material.clone(),
-                        ..Default::default()
-                    })
-                    .insert(TankGun)
-                    .insert(Angle(0.));
+                parent.spawn_bundle(TankGunBundle::new(gun_material.clone()));
             })
             .id();
         if i == 0 {
@@ -317,7 +426,22 @@ fn shoot_system(
     }
 }
 
-fn tank_throwing_system(
+fn throw_down_tanks_system(
+    mut commands: Commands,
+    tanks_query: Query<(Entity, &Tank, &Position), (Without<TankThrowing>,)>,
+    mut finished_event: EventReader<landscape::SubsidenceFinishedEvent>,
+) {
+    if finished_event.iter().next().is_some() {
+        debug!("Throw down all tanks");
+        for (entity, tank, position) in tanks_query.iter() {
+            commands.entity(entity).insert(tank.throw_down(position.0));
+        }
+        debug!("Tanks has thrown");
+        finished_event.iter().for_each(|_| ());
+    }
+}
+
+fn tanks_throwing_system(
     mut commands: Commands,
     mut game_field: ResMut<GameField>,
     mut tanks_query: Query<(Entity, &mut TankThrowing, &mut Position, &mut Health)>,
@@ -378,7 +502,6 @@ fn tank_throwing_system(
                         (path_len * TANK_THROWING_DAMAGE_POWER).min(255.).round() as u8;
                     if damage_value > 0 && health.damage(damage_value) == 0 {
                         dead_tanks_count += 1;
-                        game_field.remove_tank_by_entity(entity);
                     }
                 }
             }
@@ -387,19 +510,43 @@ fn tank_throwing_system(
 
     if tanks_count > 0 && tanks_count == placed_tanks_count {
         // All tanks placed
-        if let GameState::Starting = game_field.state {
-            game_field.state = GameState::Playing;
-        } else if dead_tanks_count == 0 {
-            // Switch current tank
-            for (cur_tank_entity, _) in cur_tank_query.iter() {
-                commands.entity(cur_tank_entity).remove::<CurrentTank>();
-                commands.entity(cur_tank_entity).remove::<AimingTank>();
+        match game_field.state {
+            GameState::Starting => game_field.state = GameState::Playing,
+            GameState::SwitchTank => (),
+            _ => {
+                // Remove current tank markers
+                for (cur_tank_entity, _) in cur_tank_query.iter() {
+                    commands.entity(cur_tank_entity).remove::<CurrentTank>();
+                    commands.entity(cur_tank_entity).remove::<AimingTank>();
+                }
+                debug!("Change game status into SwitchTank");
+                game_field.state = GameState::SwitchTank;
             }
-            if let Some(new_current_entity) = game_field.switch_current_tank() {
-                commands
-                    .entity(new_current_entity)
-                    .insert(CurrentTank)
-                    .insert(AimingTank);
+        }
+        // if let GameState::Starting = game_field.state {
+        //     game_field.state = GameState::Playing;
+        // } else if
+    }
+}
+
+pub fn missile_collides_with_tanks_system(
+    mut commands: Commands,
+    game_field: Res<GameField>,
+    audio: Res<Audio>,
+    mut ev_missile_moved: EventReader<MissileMovedEvent>,
+    tank_position_query: Query<(&Tank, &Position), Without<Missile>>,
+) {
+    for ev in ev_missile_moved.iter() {
+        for &(x, y) in ev.path.iter() {
+            let is_hit = tank_position_query
+                .iter()
+                .any(|(tank, position)| tank.has_collision(position.0, (x as f32, y as f32)));
+            if is_hit {
+                debug!("Hit to tank: {:?}", (x, y));
+                commands.entity(ev.missile).despawn();
+                spawn_explosion(&mut commands, &game_field, Vec2::new(x as f32, y as f32));
+                audio.play(game_field.explosion_sound.clone());
+                break;
             }
         }
     }
@@ -408,13 +555,15 @@ fn tank_throwing_system(
 fn remove_dead_tank_system(
     mut commands: Commands,
     audio: Res<Audio>,
-    game_field: Res<GameField>,
+    mut game_field: ResMut<GameField>,
     health_query: Query<(&Health, &Position, Entity), Changed<Health>>,
 ) {
     for (health, position, entity) in health_query.iter() {
         if health.0 == 0 {
+            debug!("Explode tank");
             spawn_explosion(&mut commands, &game_field, position.0);
             audio.play(game_field.explosion_sound.clone());
+            game_field.remove_tank_by_entity(entity);
             commands.entity(entity).despawn_recursive();
         }
     }
@@ -441,7 +590,9 @@ mod tests {
         for point in inner_points.iter() {
             assert!(
                 tank.has_collision(tank_position, (10. + point.0, 20. - point.1)),
-                format!("point=({}, {})", point.0, point.1)
+                "point=({}, {})",
+                point.0,
+                point.1
             );
         }
 
@@ -454,7 +605,9 @@ mod tests {
         for point in inner_points.iter() {
             assert!(
                 tank.has_collision(tank_position, (10. + point.0, 20. - point.1)),
-                format!("point=({}, {})", point.0, point.1)
+                "point=({}, {})",
+                point.0,
+                point.1
             );
         }
 
@@ -466,7 +619,9 @@ mod tests {
         for point in inner_points.iter() {
             assert!(
                 tank.has_collision(tank_position, (10. + point.0, 20. - point.1)),
-                format!("point=({}, {})", point.0, point.1)
+                "point=({}, {})",
+                point.0,
+                point.1
             );
         }
     }

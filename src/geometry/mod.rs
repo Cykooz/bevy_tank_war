@@ -7,6 +7,7 @@ pub use ellipse::Ellipse;
 
 pub mod circle;
 pub mod ellipse;
+pub mod rect;
 
 pub fn clone_shape_bundle(shape_bundle: &ShapeBundle, transform: Transform) -> ShapeBundle {
     let colors = ShapeColors {

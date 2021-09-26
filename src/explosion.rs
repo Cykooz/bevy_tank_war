@@ -48,6 +48,7 @@ impl Explosion {
     }
 
     fn destroy_landscape(&mut self, position: Vec2, landscape: &mut Landscape) {
+        let mut landscape_changed = false;
         let circle = line_drawing::BresenhamCircle::new(
             position.x as i32,
             position.y as i32,
@@ -67,11 +68,26 @@ impl Explosion {
             }
             for &y in [y1, y2].iter() {
                 if let Some(pixels) = landscape.get_pixels_line_mut((x, y), len) {
-                    pixels.iter_mut().for_each(|c| *c = 0);
+                    let changed_count: u32 = pixels
+                        .iter_mut()
+                        .map(|c| {
+                            if *c == 0 {
+                                0
+                            } else {
+                                *c = 0;
+                                1
+                            }
+                        })
+                        .sum();
+                    if changed_count > 0 {
+                        landscape_changed = true;
+                    }
                 }
             }
         }
-        landscape.set_changed();
+        if landscape_changed {
+            landscape.set_changed();
+        }
         self.landscape_updated = true;
     }
 
@@ -90,6 +106,7 @@ impl Explosion {
 }
 
 pub fn spawn_explosion(commands: &mut Commands, game_field: &GameField, position: Vec2) {
+    debug!("Spawn explosion");
     let explosion = Explosion::new(50.0);
     let scale = explosion.cur_radius / 1000.0;
 
@@ -143,6 +160,7 @@ pub fn update_explosion_system(
         if explosion.cur_opacity == 0. {
             // Remove explosion entity
             commands.entity(entity).despawn();
+            debug!("Explosion removed");
             remove_explosions += 1;
 
             // Check intersection of explosion with tanks and decrease its health.

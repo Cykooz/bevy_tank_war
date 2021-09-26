@@ -4,9 +4,11 @@ use bevy::prelude::*;
 use bevy_prototype_lyon::prelude::*;
 
 use crate::components::{Angle, Position, Scale, POST_GAME_UPDATE, ROUND_SETUP};
+use crate::explosion::Explosion;
 use crate::game_field::{GameField, GameState};
 use crate::landscape::LandscapeSprite;
-use crate::missile::missile_moving_system;
+use crate::missile;
+use crate::tank::{AimingTank, CurrentTank, Health, Tank, TankThrowing};
 use crate::{explosion, landscape, status_panel, tank};
 
 pub struct TankWarGamePlugin;
@@ -18,13 +20,17 @@ impl Plugin for TankWarGamePlugin {
             .add_system(set_texture_filtration.system())
             .add_startup_stage(ROUND_SETUP, SystemStage::parallel())
             .add_stage_after(CoreStage::Update, POST_GAME_UPDATE, SystemStage::parallel())
-            .add_system(landscape::update_landscape.system())
-            .add_system(landscape::update_landscape_texture.system())
-            .add_system(missile_moving_system.system())
             .add_system_to_stage(POST_GAME_UPDATE, update_translation.system())
             .add_system_to_stage(POST_GAME_UPDATE, update_scale.system())
             .add_system_to_stage(POST_GAME_UPDATE, update_angle.system())
+            .add_system(
+                switch_current_tank_system
+                    .system()
+                    .after("tanks_processing"),
+            )
             .add_plugin(ShapePlugin)
+            .add_plugin(landscape::LandscapePlugin)
+            .add_plugin(missile::MissilesPlugin)
             .add_plugin(tank::TanksPlugin)
             .add_plugin(explosion::ExplosionPlugin)
             .add_plugin(status_panel::StatusPanelPlugin);
@@ -162,22 +168,41 @@ fn update_angle(mut query: Query<(&Angle, &mut Transform), (Changed<Angle>,)>) {
     }
 }
 
-// fn switch_current_tank_system(
-//     commands: &mut Commands,
-//     game_field: Res<GameField>,
-//     throwing_tanks: Query<(&TankThrowing,)>,
-//     explosions: Query<(&Explosion,)>,
-// ) {
-//     if let GameState::Starting = game_field.state {
-//         return;
-//     }
-//     if game_field.landscape.is_subsidence() {
-//         return;
-//     }
-//     if throwing_tanks.iter().next().is_some() {
-//         return;
-//     }
-//     if explosions.iter().next().is_some() {
-//         return;
-//     }
-// }
+fn switch_current_tank_system(
+    mut commands: Commands,
+    mut game_field: ResMut<GameField>,
+    throwing_tanks: Query<(&TankThrowing,)>,
+    health_query: Query<(&Health,), Changed<Health>>,
+    cur_tank_query: Query<(&CurrentTank,)>,
+    explosions: Query<(&Explosion,)>,
+) {
+    if let GameState::SwitchTank = game_field.state {
+        if cur_tank_query.iter().next().is_some() {
+            // Current tank already exists
+            return;
+        }
+        if game_field.landscape.is_subsidence() {
+            return;
+        }
+        if throwing_tanks.iter().next().is_some() {
+            return;
+        }
+        if explosions.iter().next().is_some() {
+            return;
+        }
+        if health_query.iter().any(|(h,)| h.0 == 0) {
+            // Not all dead tanks has removed
+            return;
+        }
+        debug!("Switch current tank");
+        if let Some(new_current_entity) = game_field.switch_current_tank() {
+            commands
+                .entity(new_current_entity)
+                .insert(CurrentTank)
+                .insert(AimingTank);
+            game_field.state = GameState::Playing;
+        } else {
+            // TODO: All tanks is dead
+        }
+    }
+}

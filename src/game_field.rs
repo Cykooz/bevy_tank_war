@@ -12,6 +12,7 @@ const TANK_THROWING_DAMAGE_POWER: f32 = 0.1;
 pub enum GameState {
     Starting,
     Playing,
+    SwitchTank,
     TanksThrowing,
     Aiming,
     Subsidence,
@@ -56,7 +57,7 @@ impl GameField {
     }
 
     fn change_wind(&mut self) {
-        self.wind_power = (rand::thread_rng().gen_range(-10.0_f32, 10.0_f32) * 10.0).round() / 10.0;
+        self.wind_power = (rand::thread_rng().gen_range(-10.0_f32..10.0_f32) * 10.0).round() / 10.0;
     }
 
     pub fn switch_current_tank(&mut self) -> Option<Entity> {
@@ -78,8 +79,7 @@ impl GameField {
         if let Some(tank_entity) = self
             .tanks
             .iter_mut()
-            .filter(|t| t.map(|e| e == entity).unwrap_or(false))
-            .next()
+            .find(|t| t.map(|e| e == entity).unwrap_or(false))
         {
             *tank_entity = None;
         }

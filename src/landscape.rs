@@ -6,12 +6,29 @@ use itertools::Itertools;
 use noise::{self, Fbm, MultiFractal, NoiseFn, Seedable};
 use rand::Rng;
 
-use crate::components::Position;
+use crate::explosion::spawn_explosion;
 use crate::game_field::GameField;
-use crate::tank::{Tank, TankThrowing};
+use crate::missile;
 use crate::G;
 
 const TIME_SCALE: f32 = 3.0;
+
+pub struct LandscapePlugin;
+
+impl Plugin for LandscapePlugin {
+    fn build(&self, app: &mut AppBuilder) {
+        app.add_event::<SubsidenceFinishedEvent>()
+            .add_system(update_landscape.system())
+            .add_system(update_landscape_texture.system())
+            .add_system(
+                missile_collides_with_landscape_system
+                    .system()
+                    .after(missile::MISSILE_MOVED_LABEL),
+            );
+    }
+}
+
+pub struct SubsidenceFinishedEvent;
 
 #[derive(Debug)]
 pub struct Landscape {
@@ -56,7 +73,7 @@ impl Landscape {
             buffer: vec![0; res_size],
             texture_handle: textures.add(texture),
             amplitude: f64::from(height) / 2.,
-            dx: rng.gen_range(0., width as f64 / 2.),
+            dx: rng.gen_range(0.0..width as f64 / 2.),
             noise: Self::create_noise(width, rng.gen()),
             changed: true,
             subsidence_started: None,
@@ -158,11 +175,12 @@ impl Landscape {
 
     pub fn subsidence(&mut self) {
         if self.subsidence_started.is_none() {
+            debug!("Start subsidence");
             self.subsidence_started = Some(Instant::now());
-            self.subsidence_last_pos = 0;
-            self.subsidence_skip = 0;
-            self.subsidence_take = self.width as usize;
         }
+        self.subsidence_last_pos = 0;
+        self.subsidence_skip = 0;
+        self.subsidence_take = self.width as usize;
     }
 
     pub fn is_subsidence(&self) -> bool {
@@ -218,6 +236,7 @@ impl Landscape {
                 if changed {
                     self.changed = true;
                 } else {
+                    debug!("Subsidence has end");
                     self.subsidence_started = None;
                     return true;
                 }
@@ -229,15 +248,12 @@ impl Landscape {
 }
 
 pub fn update_landscape(
-    mut commands: Commands,
     mut game_field: ResMut<GameField>,
-    tanks_query: Query<(Entity, &Tank, &Position), (Without<TankThrowing>,)>,
+    mut finished_event: EventWriter<SubsidenceFinishedEvent>,
 ) {
     let landscape = &mut game_field.landscape;
     if landscape.update() {
-        for (entity, tank, position) in tanks_query.iter() {
-            commands.entity(entity).insert(tank.throw_down(position.0));
-        }
+        finished_event.send(SubsidenceFinishedEvent);
     }
 }
 
@@ -297,5 +313,25 @@ pub fn scroll_landscape(
     if changed {
         landscape.generate();
         landscape.set_changed();
+    }
+}
+
+pub fn missile_collides_with_landscape_system(
+    mut commands: Commands,
+    game_field: Res<GameField>,
+    audio: Res<Audio>,
+    mut ev_missile_moved: EventReader<missile::MissileMovedEvent>,
+) {
+    let landscape = &game_field.landscape;
+    for ev in ev_missile_moved.iter() {
+        for &(x, y) in ev.path.iter() {
+            if landscape.is_not_empty(x, y) {
+                debug!("Hit to landscape: {:?}", (x, y));
+                commands.entity(ev.missile).despawn();
+                spawn_explosion(&mut commands, &game_field, Vec2::new(x as f32, y as f32));
+                audio.play(game_field.explosion_sound.clone());
+                break;
+            }
+        }
     }
 }

@@ -10,6 +10,26 @@ use crate::geometry::clone_shape_bundle;
 use crate::tank::Tank;
 
 const TIME_SCALE: f32 = 3.0;
+pub const MISSILE_MOVED_LABEL: &str = "missile_moved";
+
+pub struct MissilesPlugin;
+
+impl Plugin for MissilesPlugin {
+    fn build(&self, app: &mut AppBuilder) {
+        app.add_event::<MissileMovedEvent>()
+            .add_system(missile_moving_system.system().label(MISSILE_MOVED_LABEL));
+        //.add_system(missile_moving_system2.system().label(MISSILE_MOVED_LABEL));
+    }
+}
+
+pub struct MissileMovedEvent {
+    pub missile: Entity,
+    pub path: Vec<(i32, i32)>,
+}
+
+pub trait HasCollision {
+    fn has_collision(&self, entity_position: Vec2, point: Vec2) -> bool;
+}
 
 #[derive(Debug, Clone, Copy)]
 pub struct Missile {
@@ -31,9 +51,9 @@ impl Missile {
         self.ballistics.cur_pos()
     }
 
-    pub fn update<F>(&mut self, borders: (i32, i32), has_collision: F) -> Option<Vec2>
+    pub fn update<F>(&mut self, borders: (i32, i32), mut has_collision: F) -> Option<Vec2>
     where
-        F: Fn(i32, i32) -> bool,
+        F: FnMut(i32, i32) -> bool,
     {
         for (x, y) in self.ballistics.positions_iter(None, Some(borders)) {
             if has_collision(x, y) || y <= 0 {
@@ -84,6 +104,32 @@ pub fn missile_moving_system(
             commands.entity(missile_entity).despawn();
             spawn_explosion(&mut commands, &game_field, current_position);
             audio.play(game_field.explosion_sound.clone());
+        }
+    }
+}
+
+pub fn missile_moving_system2(
+    game_field: Res<GameField>,
+    mut ev_missile_moved: EventWriter<MissileMovedEvent>,
+    mut missile_query: Query<(Entity, &mut Missile, &mut Position)>,
+) {
+    let landscape = &game_field.landscape;
+    let size = landscape.size();
+    let borders = (size.0 as i32, size.1 as i32);
+    for (missile_entity, mut missile, mut missile_position) in missile_query.iter_mut() {
+        let mut path: Vec<(i32, i32)> = Vec::new();
+        missile.update(borders, |x, y| {
+            path.push((x, y));
+            false
+        });
+        let current_position = missile.cur_pos();
+        missile_position.0 = current_position;
+
+        if !path.is_empty() {
+            ev_missile_moved.send(MissileMovedEvent {
+                missile: missile_entity,
+                path,
+            })
         }
     }
 }
