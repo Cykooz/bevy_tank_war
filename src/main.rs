@@ -1,12 +1,12 @@
 use bevy::prelude::*;
 
-use bevy::diagnostic::LogDiagnosticsPlugin;
+//use bevy::diagnostic::LogDiagnosticsPlugin;
 use bevy_tank_war::TankWarGamePlugin;
 
 fn main() {
-    env_logger::init();
+    // env_logger::init();
 
-    App::build()
+    App::new()
         .insert_resource(Msaa { samples: 4 })
         .insert_resource(WindowDescriptor {
             title: "Tank War - Rust edition".to_string(),

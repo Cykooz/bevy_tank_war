@@ -1,7 +1,7 @@
 use std::time::Instant;
 
 use bevy::prelude::*;
-use bevy::render::texture::{Extent3d, TextureDimension, TextureFormat};
+use bevy::render::render_resource::{Extent3d, TextureDimension, TextureFormat};
 use itertools::Itertools;
 use noise::{self, Fbm, MultiFractal, NoiseFn, Seedable};
 use rand::Rng;
@@ -16,15 +16,11 @@ const TIME_SCALE: f32 = 3.0;
 pub struct LandscapePlugin;
 
 impl Plugin for LandscapePlugin {
-    fn build(&self, app: &mut AppBuilder) {
+    fn build(&self, app: &mut App) {
         app.add_event::<SubsidenceFinishedEvent>()
-            .add_system(update_landscape.system())
-            .add_system(update_landscape_texture.system())
-            .add_system(
-                missile_collides_with_landscape_system
-                    .system()
-                    .after(missile::MISSILE_MOVED_LABEL),
-            );
+            .add_system(update_landscape)
+            .add_system(update_landscape_texture)
+            .add_system(missile_collides_with_landscape_system.after(missile::MISSILE_MOVED_LABEL));
     }
 }
 
@@ -35,7 +31,7 @@ pub struct Landscape {
     width: u16,
     height: u16,
     buffer: Vec<u8>,
-    texture_handle: Handle<Texture>,
+    texture_handle: Handle<Image>,
     noise: Fbm,
     amplitude: f64,
     pub dx: f64,
@@ -49,18 +45,23 @@ pub struct Landscape {
     subsidence_take: usize,
 }
 
+#[derive(Component)]
 pub struct LandscapeSprite;
 
 impl Landscape {
-    pub fn new(width: u16, height: u16, textures: &mut Assets<Texture>) -> Result<Self, String> {
+    pub fn new(width: u16, height: u16, textures: &mut Assets<Image>) -> Result<Self, String> {
         if width.min(height) == 0 {
             return Err("'width' and 'height' must be greater than 0".into());
         }
 
         let stride = width as usize;
         let res_size = stride * height as usize;
-        let texture = Texture::new(
-            Extent3d::new(width as u32, height as u32, 1),
+        let texture = Image::new(
+            Extent3d {
+                width: width as u32,
+                height: height as u32,
+                depth_or_array_layers: 1,
+            },
             TextureDimension::D2,
             vec![0u8; res_size * 4],
             TextureFormat::Rgba8UnormSrgb,
@@ -93,7 +94,7 @@ impl Landscape {
     }
 
     #[inline]
-    pub fn texture_handle(&self) -> Handle<Texture> {
+    pub fn texture_handle(&self) -> Handle<Image> {
         self.texture_handle.clone()
     }
 
@@ -258,23 +259,17 @@ pub fn update_landscape(
 }
 
 pub fn update_landscape_texture(
-    mut textures: ResMut<Assets<Texture>>,
-    mut materials: ResMut<Assets<ColorMaterial>>,
+    mut textures: ResMut<Assets<Image>>,
     mut game_field: ResMut<GameField>,
-    mut material_query: Query<&Handle<ColorMaterial>, With<LandscapeSprite>>,
 ) {
     let landscape = &mut game_field.landscape;
     if landscape.changed() {
-        if let Some(material_handle) = material_query.iter_mut().next() {
-            if materials.get_mut(material_handle).is_some() {
-                if let Some(texture) = textures.get_mut(&landscape.texture_handle) {
-                    let buf = unsafe { texture.data.align_to_mut::<u32>().1 };
-                    for (&v, d) in landscape.buffer.iter().zip(buf) {
-                        *d = if v == 0 { 0 } else { 0xff_40_71_9c } // 0xff_cf_bd_00
-                    }
-                    landscape.changed = false;
-                }
+        if let Some(texture) = textures.get_mut(&landscape.texture_handle) {
+            let buf = unsafe { texture.data.align_to_mut::<u32>().1 };
+            for (&v, d) in landscape.buffer.iter().zip(buf) {
+                *d = if v == 0 { 0 } else { 0xff_40_71_9c } // 0xff_cf_bd_00
             }
+            landscape.changed = false;
         }
     }
 }

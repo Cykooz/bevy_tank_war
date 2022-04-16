@@ -7,25 +7,29 @@ use crate::tank::{CurrentTank, Health, Tank};
 pub struct StatusPanelPlugin;
 
 impl Plugin for StatusPanelPlugin {
-    fn build(&self, app: &mut AppBuilder) {
-        app.add_startup_system_to_stage(ROUND_SETUP, setup_status_panel.system())
-            .add_system(update_gun_angle_text.system())
-            .add_system(update_gun_power_text.system())
-            .add_system(update_wind_power_text.system())
-            .add_system(update_player_number_text.system())
-            .add_system(update_tank_health_text.system());
+    fn build(&self, app: &mut App) {
+        app.add_startup_system_to_stage(ROUND_SETUP, setup_status_panel)
+            .add_system(update_gun_angle_text)
+            .add_system(update_gun_power_text)
+            .add_system(update_wind_power_text)
+            .add_system(update_player_number_text)
+            .add_system(update_tank_health_text);
     }
 }
 
+#[derive(Component)]
 pub struct GunAngleText;
+#[derive(Component)]
 pub struct GunPowerText;
+#[derive(Component)]
 pub struct WindPowerText;
+#[derive(Component)]
 pub struct PlayerNumberText;
+#[derive(Component)]
 pub struct TankHealthText;
 
 pub fn setup_status_panel(
     mut commands: Commands,
-    mut materials: ResMut<Assets<ColorMaterial>>,
     game_field: Res<GameField>,
     window: Res<WindowDescriptor>,
 ) {
@@ -41,7 +45,7 @@ pub fn setup_status_panel(
             },
             ..Default::default()
         },
-        material: materials.add(Color::BLACK.into()),
+        color: Color::BLACK.into(),
         ..Default::default()
     });
 

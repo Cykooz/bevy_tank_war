@@ -2,6 +2,7 @@ use std::time::Instant;
 
 use bevy::prelude::*;
 use bevy::render::mesh::VertexAttributeValues;
+use bevy::sprite::Mesh2dHandle;
 use bevy_prototype_lyon::prelude::*;
 use itertools::Itertools;
 
@@ -16,13 +17,13 @@ const SPEED: f32 = 150.0;
 pub struct ExplosionPlugin;
 
 impl Plugin for ExplosionPlugin {
-    fn build(&self, app: &mut AppBuilder) {
-        app.add_system(update_explosion_system.system())
-            .add_system_to_stage(POST_GAME_UPDATE, update_explosion_alpha_system.system());
+    fn build(&self, app: &mut App) {
+        app.add_system(update_explosion_system)
+            .add_system_to_stage(POST_GAME_UPDATE, update_explosion_alpha_system);
     }
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Component)]
 pub struct Explosion {
     created: Instant,
     max_radius: f32,
@@ -40,11 +41,6 @@ impl Explosion {
             cur_opacity: 1.0,
             landscape_updated: false,
         }
-    }
-
-    #[inline]
-    pub fn is_life(self) -> bool {
-        self.cur_opacity > 0.0
     }
 
     fn destroy_landscape(&mut self, position: Vec2, landscape: &mut Landscape) {
@@ -111,15 +107,16 @@ pub fn spawn_explosion(commands: &mut Commands, game_field: &GameField, position
     let scale = explosion.cur_radius / 1000.0;
 
     let color = Color::rgba(242. / 255., 68. / 255., 15. / 255., 1.);
-    let explosion_colors = ShapeColors::new(color);
     let explosion_circle = shapes::Circle {
         radius: 1000.,
         ..shapes::Circle::default()
     };
     let explosion_bundle = GeometryBuilder::build_as(
         &explosion_circle,
-        explosion_colors,
-        DrawMode::Fill(FillOptions::default()),
+        DrawMode::Fill(FillMode {
+            options: FillOptions::default(),
+            color,
+        }),
         Transform::from_translation(Vec3::new(position.x, position.y, 2.)),
     );
 
@@ -182,11 +179,11 @@ pub fn update_explosion_system(
 
 pub fn update_explosion_alpha_system(
     mut meshes: ResMut<Assets<Mesh>>,
-    query: Query<(&Explosion, &Handle<Mesh>), (Changed<Scale>,)>,
+    query: Query<(&Explosion, &Mesh2dHandle), (Changed<Scale>,)>,
 ) {
     for (explosion, mesh_handle) in query.iter() {
-        if let Some(mesh) = meshes.get_mut(mesh_handle) {
-            if let Some(VertexAttributeValues::Float4(colors)) =
+        if let Some(mesh) = meshes.get_mut(&mesh_handle.0) {
+            if let Some(VertexAttributeValues::Float32x4(colors)) =
                 mesh.attribute_mut(Mesh::ATTRIBUTE_COLOR)
             {
                 colors.iter_mut().for_each(|c| c[3] = explosion.cur_opacity);

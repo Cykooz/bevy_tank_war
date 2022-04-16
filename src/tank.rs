@@ -17,52 +17,47 @@ const TANK_SIZE: f32 = 41.;
 const GUN_SIZE: f32 = 21.;
 const POWER_SCALE: f32 = 300. / 100.;
 const TIME_SCALE: f32 = 3.0;
-/// A damage per one pixel of height with which tank was dropped.
+/// Damage per one pixel of height with which tank was dropped.
 const TANK_THROWING_DAMAGE_POWER: f32 = 0.1;
 
 pub struct TanksPlugin;
 
 impl Plugin for TanksPlugin {
-    fn build(&self, app: &mut AppBuilder) {
-        app.add_startup_system_to_stage(ROUND_SETUP, setup_tanks.system())
-            .add_system(gun_rotate_system.system())
-            .add_system(gun_sprite_angle_system.system())
-            .add_system(gun_power_system.system())
-            .add_system(shoot_system.system())
+    fn build(&self, app: &mut App) {
+        app.add_startup_system_to_stage(ROUND_SETUP, setup_tanks)
+            .add_system(gun_rotate_system)
+            .add_system(gun_sprite_angle_system)
+            .add_system(gun_power_system)
+            .add_system(shoot_system)
             .add_system_set(
                 SystemSet::new()
                     .label("tanks_processing")
-                    .with_system(throw_down_tanks_system.system().label("throw_down_tanks"))
+                    .with_system(throw_down_tanks_system.label("throw_down_tanks"))
                     .with_system(
                         tanks_throwing_system
-                            .system()
                             .label("tanks_throwing")
                             .after("throw_down_tanks"),
                     )
-                    .with_system(remove_dead_tank_system.system().after("tanks_throwing")),
+                    .with_system(remove_dead_tank_system.after("tanks_throwing")),
             )
-            .add_system(
-                missile_collides_with_tanks_system
-                    .system()
-                    .after(MISSILE_MOVED_LABEL),
-            );
+            .add_system(missile_collides_with_tanks_system.after(MISSILE_MOVED_LABEL));
     }
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Component)]
 pub struct TankGun;
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Component)]
 pub struct CurrentTank;
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Component)]
 pub struct AimingTank;
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Component)]
 pub struct Health(pub u8);
 
 impl Health {
-    /// Returns value of health after a damage has been applied.
+    /// Returns value of health after damage has been applied.
     #[inline]
     pub fn damage(&mut self, v: u8) -> u8 {
         self.0 = self.0.saturating_sub(v);
@@ -70,14 +65,14 @@ impl Health {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Component)]
 pub struct TankThrowing {
     pub start_position: Vec2,
     pub tank_width: f32,
     pub ballistics: Ballistics,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Component)]
 pub struct Tank {
     pub player_number: u8,
     pub power: f32,
@@ -273,12 +268,15 @@ struct TankBundle {
 }
 
 impl TankBundle {
-    pub fn new(player_number: u8, position: Vec2, material: Handle<ColorMaterial>) -> Self {
+    pub fn new(player_number: u8, position: Vec2, texture: Handle<Image>) -> Self {
         let hue_offset = (player_number as u16 - 1) * (360 / MAX_PLAYERS_COUNT as u16);
         let tank = Tank::new(player_number, hue_offset);
         let tank_throwing = tank.throw_down(position);
+        let mut transform = Transform::default();
+        transform.translation.z = 0.1;
         let sprite = SpriteBundle {
-            material,
+            texture,
+            transform,
             ..Default::default()
         };
         Self {
@@ -300,9 +298,12 @@ struct TankGunBundle {
 }
 
 impl TankGunBundle {
-    pub fn new(material: Handle<ColorMaterial>) -> Self {
+    pub fn new(texture: Handle<Image>) -> Self {
+        let mut transform = Transform::default();
+        transform.translation.z = -0.1;
         let sprite = SpriteBundle {
-            material,
+            texture,
+            transform,
             ..Default::default()
         };
         Self {
@@ -314,8 +315,8 @@ impl TankGunBundle {
 }
 
 fn setup_tanks(mut commands: Commands, mut game_field: ResMut<GameField>) {
-    let tank_material = game_field.tank_material.clone();
-    let gun_material = game_field.gun_material.clone();
+    let tank_material = game_field.tank_texture.clone();
+    let gun_material = game_field.gun_texture.clone();
 
     let count_of_tanks = 5u8;
     game_field.start_round(count_of_tanks);
@@ -449,7 +450,6 @@ fn tanks_throwing_system(
 ) {
     let mut tanks_count: usize = 0;
     let mut placed_tanks_count: usize = 0;
-    let mut dead_tanks_count: usize = 0;
 
     let game_state = game_field.state;
 
@@ -500,8 +500,8 @@ fn tanks_throwing_system(
                     let path_len = throwing.start_position.y - cur_height;
                     let damage_value: u8 =
                         (path_len * TANK_THROWING_DAMAGE_POWER).min(255.).round() as u8;
-                    if damage_value > 0 && health.damage(damage_value) == 0 {
-                        dead_tanks_count += 1;
+                    if damage_value > 0 {
+                        health.damage(damage_value);
                     }
                 }
             }

@@ -1,12 +1,12 @@
 use std::f32::consts::PI;
 
 use bevy::prelude::*;
+use bevy_prototype_lyon::prelude::*;
 
 use crate::ballistics::Ballistics;
 use crate::components::Position;
 use crate::explosion::spawn_explosion;
 use crate::game_field::GameField;
-use crate::geometry::clone_shape_bundle;
 use crate::tank::Tank;
 
 const TIME_SCALE: f32 = 3.0;
@@ -15,9 +15,9 @@ pub const MISSILE_MOVED_LABEL: &str = "missile_moved";
 pub struct MissilesPlugin;
 
 impl Plugin for MissilesPlugin {
-    fn build(&self, app: &mut AppBuilder) {
+    fn build(&self, app: &mut App) {
         app.add_event::<MissileMovedEvent>()
-            .add_system(missile_moving_system.system().label(MISSILE_MOVED_LABEL));
+            .add_system(missile_moving_system.label(MISSILE_MOVED_LABEL));
         //.add_system(missile_moving_system2.system().label(MISSILE_MOVED_LABEL));
     }
 }
@@ -31,7 +31,7 @@ pub trait HasCollision {
     fn has_collision(&self, entity_position: Vec2, point: Vec2) -> bool;
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Component)]
 pub struct Missile {
     ballistics: Ballistics,
 }
@@ -67,8 +67,17 @@ impl Missile {
 
 pub fn spawn_missile(commands: &mut Commands, game_field: &GameField, missile: Missile) {
     let position = missile.cur_pos();
-    let missile_bundle = clone_shape_bundle(
-        &game_field.missile_bundle,
+    let missile_color = Color::rgb(1., 1., 1.);
+    let missile_circle = shapes::Circle {
+        radius: 1.5,
+        ..shapes::Circle::default()
+    };
+    let missile_bundle = GeometryBuilder::build_as(
+        &missile_circle,
+        DrawMode::Fill(FillMode {
+            options: FillOptions::default(),
+            color: missile_color,
+        }),
         Transform::from_translation(Vec3::new(position.x, position.y, 1.)),
     );
     commands
