@@ -178,7 +178,7 @@ impl Tank {
     pub fn has_collision<P: Into<Vec2>>(&self, tank_position: Vec2, point: P) -> bool {
         let point = point.into();
         let local_point = point - tank_position;
-        // If point inside of tank's rectangle
+        // If point outside of tank's rectangle
         if local_point.abs().max_element() > TANK_SIZE / 2. {
             return false;
         }
@@ -232,7 +232,7 @@ impl TankCollider {
 impl HasCollision for TankCollider {
     fn has_collision(&self, entity_position: Vec2, point: Vec2) -> bool {
         let local_point = point - entity_position;
-        // If point inside of tank's rectangle
+        // If point outside inside of tank's rectangle
         if local_point.abs().max_element() > TANK_SIZE / 2. {
             return false;
         }
@@ -342,8 +342,7 @@ fn setup_tanks(mut commands: Commands, mut game_field: ResMut<GameField>) {
             .insert(Parent(parent_entity))
             .with_children(|parent| {
                 parent.spawn_bundle(TankGunBundle::new(gun_material.clone()));
-            })
-            .id();
+            });
         if i == 0 {
             entity_commands.insert(CurrentTank).insert(AimingTank);
         }

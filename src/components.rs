@@ -11,3 +11,6 @@ pub struct Scale(pub f32);
 
 #[derive(Debug, Default, Clone, Copy, Component)]
 pub struct Angle(pub f32);
+
+#[derive(Debug, Default, Clone, Copy, Component)]
+pub struct Opacity(pub f32);

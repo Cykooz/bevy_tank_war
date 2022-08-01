@@ -34,88 +34,60 @@ pub fn setup_status_panel(
     window: Res<WindowDescriptor>,
 ) {
     let panel_bottom = window.height - 30.;
-    commands.spawn_bundle(NodeBundle {
+    let mut panel = commands.spawn_bundle(NodeBundle {
         style: Style {
             size: Size::new(Val::Percent(100.0), Val::Px(30.0)),
             position_type: PositionType::Absolute,
             position: Rect {
                 left: Val::Px(0.0),
                 bottom: Val::Px(panel_bottom),
-                ..Default::default()
+                ..default()
             },
-            ..Default::default()
+            padding: Rect {
+                left: Val::Px(10.),
+                right: Val::Px(10.),
+                ..default()
+            },
+            align_items: AlignItems::Center,
+            ..default()
         },
         color: Color::BLACK.into(),
-        ..Default::default()
+        ..default()
     });
 
-    let text_bottom = panel_bottom + 4.;
-    // Gun Angle
-    commands
-        .spawn_bundle(spawn_text(
-            "Angle:",
-            10.,
-            text_bottom,
-            game_field.font.clone(),
-        ))
-        .insert(GunAngleText);
+    panel.with_children(|parent| {
+        // Gun Angle
+        parent
+            .spawn_bundle(spawn_text("Angle:", game_field.font.clone(), 110.0))
+            .insert(GunAngleText);
 
-    // Gun Power
-    commands
-        .spawn_bundle(spawn_text(
-            "Power:",
-            110.,
-            text_bottom,
-            game_field.font.clone(),
-        ))
-        .insert(GunPowerText);
+        // Gun Power
+        parent
+            .spawn_bundle(spawn_text("Power:", game_field.font.clone(), 110.0))
+            .insert(GunPowerText);
 
-    // Wind Power
-    commands
-        .spawn_bundle(spawn_text(
-            "Wind:",
-            220.,
-            text_bottom,
-            game_field.font.clone(),
-        ))
-        .insert(WindPowerText);
+        // Wind Power
+        parent
+            .spawn_bundle(spawn_text("Wind:", game_field.font.clone(), 110.0))
+            .insert(WindPowerText);
 
-    // Player number
-    commands
-        .spawn_bundle(spawn_text(
-            "Player:",
-            440.,
-            text_bottom,
-            game_field.font.clone(),
-        ))
-        .insert(PlayerNumberText);
+        // Player number
+        parent
+            .spawn_bundle(spawn_text("Player:", game_field.font.clone(), 110.0))
+            .insert(PlayerNumberText);
 
-    // Tank health
-    commands
-        .spawn_bundle(spawn_text(
-            "Health:",
-            540.,
-            text_bottom,
-            game_field.font.clone(),
-        ))
-        .insert(TankHealthText);
+        // Tank health
+        parent
+            .spawn_bundle(spawn_text("Health:", game_field.font.clone(), 120.0))
+            .insert(TankHealthText);
+    });
 }
 
-fn spawn_text(
-    text_value: &str,
-    left_position: f32,
-    bottom_position: f32,
-    font: Handle<Font>,
-) -> TextBundle {
+fn spawn_text(text_value: &str, font: Handle<Font>, width: f32) -> TextBundle {
     TextBundle {
         style: Style {
-            position_type: PositionType::Absolute,
-            position: Rect {
-                left: Val::Px(left_position),
-                bottom: Val::Px(bottom_position),
-                ..Default::default()
-            },
-            ..Default::default()
+            size: Size::new(Val::Px(width), Val::Px(20.)),
+            ..default()
         },
         text: Text::with_section(
             // Accepts a `String` or any type that converts into a `String`, such as `&str`
@@ -126,9 +98,9 @@ fn spawn_text(
                 color: Color::WHITE,
             },
             // Note: You can use `Default::default()` in place of the `TextAlignment`
-            Default::default(),
+            default(),
         ),
-        ..Default::default()
+        ..default()
     }
 }
 

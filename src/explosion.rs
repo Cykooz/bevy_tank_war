@@ -1,12 +1,10 @@
 use std::time::Instant;
 
 use bevy::prelude::*;
-use bevy::render::mesh::VertexAttributeValues;
-use bevy::sprite::Mesh2dHandle;
 use bevy_prototype_lyon::prelude::*;
 use itertools::Itertools;
 
-use crate::components::{Position, Scale, POST_GAME_UPDATE};
+use crate::components::{Opacity, Position, Scale, POST_GAME_UPDATE};
 use crate::game_field::{GameField, GameState};
 use crate::geometry::Circle;
 use crate::landscape::Landscape;
@@ -28,7 +26,6 @@ pub struct Explosion {
     created: Instant,
     max_radius: f32,
     pub cur_radius: f32,
-    pub cur_opacity: f32,
     landscape_updated: bool,
 }
 
@@ -38,7 +35,6 @@ impl Explosion {
             created: Instant::now(),
             max_radius,
             cur_radius: 0.0,
-            cur_opacity: 1.0,
             landscape_updated: false,
         }
     }
@@ -125,36 +121,42 @@ pub fn spawn_explosion(commands: &mut Commands, game_field: &GameField, position
         .insert(explosion)
         .insert(Position(position))
         .insert(Scale(scale))
+        .insert(Opacity(1.))
         .insert(Parent(game_field.parent_entity));
 }
 
 pub fn update_explosion_system(
     mut commands: Commands,
     mut game_field: ResMut<GameField>,
-    mut explosions_query: Query<(&mut Explosion, &mut Scale, &Position, Entity)>,
+    mut explosions_query: Query<(&mut Explosion, &mut Scale, &Position, &mut Opacity, Entity)>,
     mut tanks_query: Query<(&Tank, &mut Health, &Position)>,
 ) {
     let mut total_explosions: usize = 0;
     let mut remove_explosions: usize = 0;
 
-    for (mut explosion, mut scale, &Position(explosion_pos), entity) in explosions_query.iter_mut()
+    for (mut explosion, mut scale, &Position(explosion_pos), mut opacity, entity) in
+        explosions_query.iter_mut()
     {
         total_explosions += 1;
         let time = explosion.created.elapsed().as_secs_f32();
         let radius = time * SPEED;
-        explosion.cur_opacity = if radius <= explosion.max_radius {
+        explosion.cur_radius = radius.min(explosion.max_radius);
+        scale.0 = explosion.cur_radius / 1000.;
+
+        let cur_opacity = if radius <= explosion.max_radius {
             1.0
         } else {
             0.0_f32.max((2.0 * explosion.max_radius - radius) / explosion.max_radius)
         };
-        explosion.cur_radius = radius.min(explosion.max_radius);
-        scale.0 = explosion.cur_radius / 1000.;
+        if cur_opacity != opacity.0 {
+            opacity.0 = cur_opacity;
+        }
 
         if !explosion.landscape_updated && radius >= explosion.max_radius {
             explosion.destroy_landscape(explosion_pos, &mut game_field.landscape);
         }
 
-        if explosion.cur_opacity == 0. {
+        if opacity.0 == 0. {
             // Remove explosion entity
             commands.entity(entity).despawn();
             debug!("Explosion removed");
@@ -178,16 +180,11 @@ pub fn update_explosion_system(
 }
 
 pub fn update_explosion_alpha_system(
-    mut meshes: ResMut<Assets<Mesh>>,
-    query: Query<(&Explosion, &Mesh2dHandle), (Changed<Scale>,)>,
+    mut query: Query<(&mut DrawMode, &Opacity), (Changed<Opacity>,)>,
 ) {
-    for (explosion, mesh_handle) in query.iter() {
-        if let Some(mesh) = meshes.get_mut(&mesh_handle.0) {
-            if let Some(VertexAttributeValues::Float32x4(colors)) =
-                mesh.attribute_mut(Mesh::ATTRIBUTE_COLOR)
-            {
-                colors.iter_mut().for_each(|c| c[3] = explosion.cur_opacity);
-            }
+    for (mut draw_mode, opacity) in query.iter_mut() {
+        if let DrawMode::Fill(ref mut mode) = draw_mode.as_mut() {
+            mode.color.set_a(opacity.0);
         }
     }
 }
