@@ -12,7 +12,7 @@ fn main() {
             title: "Tank War - Rust edition".to_string(),
             width: 1024.,
             height: 768.,
-            present_mode: PresentMode::Mailbox,
+            present_mode: PresentMode::AutoNoVsync,
             resizable: false,
             ..default()
         })

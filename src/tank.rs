@@ -7,6 +7,7 @@ use crate::components::{Angle, Position, ROUND_SETUP};
 use crate::explosion::spawn_explosion;
 use crate::game_field::{GameField, GameState};
 use crate::geometry::Ellipse;
+use crate::input::InputWithRepeating;
 use crate::landscape;
 use crate::missile::{
     spawn_missile, HasCollision, Missile, MissileMovedEvent, MISSILE_MOVED_LABEL,
@@ -156,9 +157,9 @@ impl Tank {
     }
 
     #[inline]
-    pub fn body_rect(&self, position: Vec2) -> Rect<f32> {
+    pub fn body_rect(&self, position: Vec2) -> UiRect<f32> {
         let half_size = TANK_SIZE / 2.;
-        Rect {
+        UiRect {
             left: position.x - half_size,
             right: position.x + half_size,
             top: position.y + half_size,
@@ -333,35 +334,39 @@ fn setup_tanks(mut commands: Commands, mut game_field: ResMut<GameField>) {
     for (i, &player_number) in player_numbers.iter().enumerate() {
         let tank_position = start_position + Vec2::new(size_between_tanks * i as f32, 0.);
 
-        let mut entity_commands = commands.spawn_bundle(TankBundle::new(
-            player_number,
-            tank_position,
-            tank_material.clone(),
-        ));
-        entity_commands
-            .insert(Parent(parent_entity))
+        let tank_entity = commands
+            .spawn_bundle(TankBundle::new(
+                player_number,
+                tank_position,
+                tank_material.clone(),
+            ))
             .with_children(|parent| {
                 parent.spawn_bundle(TankGunBundle::new(gun_material.clone()));
-            });
+            })
+            .id();
         if i == 0 {
-            entity_commands.insert(CurrentTank).insert(AimingTank);
+            commands
+                .entity(tank_entity)
+                .insert(CurrentTank)
+                .insert(AimingTank);
         }
 
-        let tank_entity = entity_commands.id();
+        commands.entity(parent_entity).add_child(tank_entity);
         game_field.tanks.push(Some(tank_entity));
     }
 }
 
 pub fn gun_rotate_system(
-    keyboard_input: ResMut<Input<KeyCode>>,
+    keyboard_input: Res<Input<KeyCode>>,
+    mut repeated_input: ResMut<InputWithRepeating<KeyCode>>,
     mut aiming_tanks: Query<&mut Tank, With<AimingTank>>,
 ) {
     let mut delta: f32 = 0.;
 
-    if keyboard_input.pressed(KeyCode::Left) {
+    if repeated_input.pressed(&keyboard_input, KeyCode::Left) {
         delta = -1.;
     }
-    if keyboard_input.pressed(KeyCode::Right) {
+    if repeated_input.pressed(&keyboard_input, KeyCode::Right) {
         delta = 1.;
     }
     if delta == 0. {
@@ -387,15 +392,16 @@ fn gun_sprite_angle_system(
 }
 
 pub fn gun_power_system(
-    keyboard_input: ResMut<Input<KeyCode>>,
+    keyboard_input: Res<Input<KeyCode>>,
+    mut repeated_input: ResMut<InputWithRepeating<KeyCode>>,
     mut aiming_tanks: Query<&mut Tank, With<AimingTank>>,
 ) {
     let mut delta: f32 = 0.;
 
-    if keyboard_input.pressed(KeyCode::Up) {
+    if repeated_input.pressed(&keyboard_input, KeyCode::Up) {
         delta = 1.;
     }
-    if keyboard_input.pressed(KeyCode::Down) {
+    if repeated_input.pressed(&keyboard_input, KeyCode::Down) {
         delta = -1.;
     }
 
@@ -410,7 +416,7 @@ pub fn gun_power_system(
 
 fn shoot_system(
     mut commands: Commands,
-    keyboard_input: ResMut<Input<KeyCode>>,
+    keyboard_input: Res<Input<KeyCode>>,
     audio: Res<Audio>,
     game_field: Res<GameField>,
     mut aiming_tanks: Query<(&Tank, &Position, Entity), With<AimingTank>>,

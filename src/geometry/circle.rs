@@ -91,7 +91,7 @@ impl Circle {
             .collect()
     }
 
-    pub fn area_of_rect_intersection(&self, mut rect: Rect<f32>) -> f32 {
+    pub fn area_of_rect_intersection(&self, mut rect: UiRect<f32>) -> f32 {
         rect.left -= self.center.x;
         rect.right -= self.center.x;
         rect.top -= self.center.y;
@@ -100,23 +100,23 @@ impl Circle {
         self.area_of_normalized_rect_intersection(rect)
     }
 
-    fn area_of_normalized_rect_intersection(&self, mut rect: Rect<f32>) -> f32 {
+    fn area_of_normalized_rect_intersection(&self, mut rect: UiRect<f32>) -> f32 {
         if rect.bottom < 0.0 {
             if rect.top < 0.0 {
                 // the rect is completely under, just flip it above //and try again
-                rect = Rect {
+                rect = UiRect {
                     top: -rect.bottom,
                     bottom: -rect.top,
                     ..rect
                 };
             } else {
                 // the rect is both above and below, divide it to two rects and go again
-                let top_rect_part = Rect {
+                let top_rect_part = UiRect {
                     top: rect.top,
                     bottom: 0.0,
                     ..rect
                 };
-                let bottom_rect_part = Rect {
+                let bottom_rect_part = UiRect {
                     top: -rect.bottom,
                     bottom: 0.0,
                     ..rect
@@ -293,7 +293,7 @@ mod tests {
         let circle = Circle::new((0.0, 0.0), 1.0);
 
         // unit circle completely inside a huge rect, area of intersection is pi
-        let area = circle.area_of_rect_intersection(Rect {
+        let area = circle.area_of_rect_intersection(UiRect {
             left: -10.0,
             right: 10.0,
             top: 10.0,
@@ -302,7 +302,7 @@ mod tests {
         assert_eq!(area, PI);
 
         // half of unit circle inside a large box, area of intersection is pi/2
-        let area = circle.area_of_rect_intersection(Rect {
+        let area = circle.area_of_rect_intersection(UiRect {
             left: -10.0,
             right: 0.0,
             top: 10.0,
@@ -311,7 +311,7 @@ mod tests {
         assert_eq!(area, FRAC_PI_2);
 
         // half of unit circle inside a large box, area of intersection is pi/2
-        let area = circle.area_of_rect_intersection(Rect {
+        let area = circle.area_of_rect_intersection(UiRect {
             left: 0.0,
             right: 10.0,
             top: 10.0,
@@ -320,7 +320,7 @@ mod tests {
         assert_eq!(area, FRAC_PI_2);
 
         // half of unit circle inside a large box, area of intersection is pi/2
-        let area = circle.area_of_rect_intersection(Rect {
+        let area = circle.area_of_rect_intersection(UiRect {
             left: -10.0,
             right: 10.0,
             top: 0.0,
@@ -329,7 +329,7 @@ mod tests {
         assert_eq!(area, FRAC_PI_2);
 
         // half of unit circle inside a large box, area of intersection is pi/2
-        let area = circle.area_of_rect_intersection(Rect {
+        let area = circle.area_of_rect_intersection(UiRect {
             left: -10.0,
             right: 10.0,
             top: 10.0,
@@ -338,7 +338,7 @@ mod tests {
         assert_eq!(area, FRAC_PI_2);
 
         // unit box covering one quadrant of the circle, area of intersection is pi/4
-        let area = circle.area_of_rect_intersection(Rect {
+        let area = circle.area_of_rect_intersection(UiRect {
             left: 0.0,
             right: 1.0,
             top: 1.0,
@@ -347,7 +347,7 @@ mod tests {
         assert_eq!(area, FRAC_PI_4);
 
         // unit box covering one quadrant of the circle, area of intersection is pi/4
-        let area = circle.area_of_rect_intersection(Rect {
+        let area = circle.area_of_rect_intersection(UiRect {
             left: -1.0,
             right: 0.0,
             top: 1.0,
@@ -356,7 +356,7 @@ mod tests {
         assert_eq!(area, FRAC_PI_4);
 
         // unit box covering one quadrant of the circle, area of intersection is pi/4
-        let area = circle.area_of_rect_intersection(Rect {
+        let area = circle.area_of_rect_intersection(UiRect {
             left: -1.0,
             right: 0.0,
             top: 0.0,
@@ -365,7 +365,7 @@ mod tests {
         assert_eq!(area, FRAC_PI_4);
 
         // unit box covering one quadrant of the circle, area of intersection is pi/4
-        let area = circle.area_of_rect_intersection(Rect {
+        let area = circle.area_of_rect_intersection(UiRect {
             left: 0.0,
             right: 1.0,
             top: 0.0,
@@ -374,7 +374,7 @@ mod tests {
         assert_eq!(area, FRAC_PI_4);
 
         // huge box completely outside a circle (left), area of intersection is 0
-        let area = circle.area_of_rect_intersection(Rect {
+        let area = circle.area_of_rect_intersection(UiRect {
             left: -20.0,
             right: -10.0,
             top: 10.0,
@@ -383,7 +383,7 @@ mod tests {
         assert_eq!(area, 0.0);
 
         // huge box completely outside a circle (right), area of intersection is 0
-        let area = circle.area_of_rect_intersection(Rect {
+        let area = circle.area_of_rect_intersection(UiRect {
             left: 10.0,
             right: 20.0,
             top: 10.0,
@@ -392,7 +392,7 @@ mod tests {
         assert_eq!(area, 0.0);
 
         // huge box completely outside a circle (below), area of intersection is 0
-        let area = circle.area_of_rect_intersection(Rect {
+        let area = circle.area_of_rect_intersection(UiRect {
             left: -10.0,
             right: 10.0,
             top: -10.0,
@@ -401,7 +401,7 @@ mod tests {
         assert_eq!(area, 0.0);
 
         // huge box completely outside a circle (above), area of intersection is 0
-        let area = circle.area_of_rect_intersection(Rect {
+        let area = circle.area_of_rect_intersection(UiRect {
             left: -10.0,
             right: 10.0,
             top: 20.0,
@@ -411,7 +411,7 @@ mod tests {
 
         // unit box completely inside a huge circle, area of intersection is 1
         let circle = Circle::new((0.0, 0.0), 10.0);
-        let area = circle.area_of_rect_intersection(Rect {
+        let area = circle.area_of_rect_intersection(UiRect {
             left: -0.5,
             right: 0.5,
             top: 0.5,
@@ -420,7 +420,7 @@ mod tests {
         assert_eq!(area, 1.0);
 
         let circle = Circle::new((87.0, 489.0), 50.0);
-        let area = circle.area_of_rect_intersection(Rect {
+        let area = circle.area_of_rect_intersection(UiRect {
             left: 100.0,
             right: 141.0,
             top: 507.0,

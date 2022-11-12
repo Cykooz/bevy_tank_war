@@ -10,6 +10,7 @@ mod landscape;
 mod missile;
 //mod shaders;
 mod collider;
+mod input;
 mod status_panel;
 mod tank;
 

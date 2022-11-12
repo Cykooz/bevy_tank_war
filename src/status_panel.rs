@@ -38,12 +38,12 @@ pub fn setup_status_panel(
         style: Style {
             size: Size::new(Val::Percent(100.0), Val::Px(30.0)),
             position_type: PositionType::Absolute,
-            position: Rect {
+            position: UiRect {
                 left: Val::Px(0.0),
                 bottom: Val::Px(panel_bottom),
                 ..default()
             },
-            padding: Rect {
+            padding: UiRect {
                 left: Val::Px(10.),
                 right: Val::Px(10.),
                 ..default()
@@ -89,7 +89,7 @@ fn spawn_text(text_value: &str, font: Handle<Font>, width: f32) -> TextBundle {
             size: Size::new(Val::Px(width), Val::Px(20.)),
             ..default()
         },
-        text: Text::with_section(
+        text: Text::from_section(
             // Accepts a `String` or any type that converts into a `String`, such as `&str`
             text_value.to_string(),
             TextStyle {
@@ -97,8 +97,6 @@ fn spawn_text(text_value: &str, font: Handle<Font>, width: f32) -> TextBundle {
                 font_size: 20.0,
                 color: Color::WHITE,
             },
-            // Note: You can use `Default::default()` in place of the `TextAlignment`
-            default(),
         ),
         ..default()
     }

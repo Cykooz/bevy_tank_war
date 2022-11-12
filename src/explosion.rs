@@ -83,7 +83,7 @@ impl Explosion {
         self.landscape_updated = true;
     }
 
-    pub fn get_intersection_percents(&self, position: Vec2, bound: Rect<f32>) -> u8 {
+    pub fn get_intersection_percents(&self, position: Vec2, bound: UiRect<f32>) -> u8 {
         let bound_area = ((bound.right - bound.left) * (bound.top - bound.bottom)).abs();
         if bound_area > 0.0 {
             let circle = Circle::new(position, self.max_radius);
@@ -116,13 +116,16 @@ pub fn spawn_explosion(commands: &mut Commands, game_field: &GameField, position
         Transform::from_translation(Vec3::new(position.x, position.y, 2.)),
     );
 
-    commands
+    let explosion_entity = commands
         .spawn_bundle(explosion_bundle)
         .insert(explosion)
         .insert(Position(position))
         .insert(Scale(scale))
         .insert(Opacity(1.))
-        .insert(Parent(game_field.parent_entity));
+        .id();
+    commands
+        .entity(game_field.parent_entity)
+        .add_child(explosion_entity);
 }
 
 pub fn update_explosion_system(
