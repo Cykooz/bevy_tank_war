@@ -5,7 +5,7 @@ use std::time::{Duration, Instant};
 use bevy::prelude::*;
 use bevy::utils::HashMap;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Resource)]
 pub struct InputWithRepeating<T: Eq + Hash> {
     next_tick: HashMap<T, Instant>,
 }
@@ -20,7 +20,7 @@ impl<T: Eq + Hash> Default for InputWithRepeating<T> {
 
 impl<T> InputWithRepeating<T>
 where
-    T: Copy + Eq + Hash,
+    T: Copy + Eq + Hash + Send + Sync + 'static,
 {
     pub fn pressed(&mut self, input: &Input<T>, key_code: T) -> bool {
         if input.pressed(key_code) {

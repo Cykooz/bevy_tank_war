@@ -81,9 +81,7 @@ pub fn spawn_missile(commands: &mut Commands, game_field: &GameField, missile: M
         Transform::from_translation(Vec3::new(position.x, position.y, 1.)),
     );
     let missile_entity = commands
-        .spawn_bundle(missile_bundle)
-        .insert(missile)
-        .insert(Position(position))
+        .spawn((missile_bundle, missile, Position(position)))
         .id();
     commands
         .entity(game_field.parent_entity)

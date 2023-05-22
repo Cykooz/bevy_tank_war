@@ -31,10 +31,11 @@ pub struct TankHealthText;
 pub fn setup_status_panel(
     mut commands: Commands,
     game_field: Res<GameField>,
-    window: Res<WindowDescriptor>,
+    windows: Res<Windows>,
 ) {
-    let panel_bottom = window.height - 30.;
-    let mut panel = commands.spawn_bundle(NodeBundle {
+    let window = windows.primary();
+    let panel_bottom = window.height() - 30.;
+    let mut panel = commands.spawn(NodeBundle {
         style: Style {
             size: Size::new(Val::Percent(100.0), Val::Px(30.0)),
             position_type: PositionType::Absolute,
@@ -51,35 +52,40 @@ pub fn setup_status_panel(
             align_items: AlignItems::Center,
             ..default()
         },
-        color: Color::BLACK.into(),
+        background_color: Color::BLACK.into(),
         ..default()
     });
 
     panel.with_children(|parent| {
         // Gun Angle
-        parent
-            .spawn_bundle(spawn_text("Angle:", game_field.font.clone(), 110.0))
-            .insert(GunAngleText);
+        parent.spawn((
+            spawn_text("Angle:", game_field.font.clone(), 110.0),
+            GunAngleText,
+        ));
 
         // Gun Power
-        parent
-            .spawn_bundle(spawn_text("Power:", game_field.font.clone(), 110.0))
-            .insert(GunPowerText);
+        parent.spawn((
+            spawn_text("Power:", game_field.font.clone(), 110.0),
+            GunPowerText,
+        ));
 
         // Wind Power
-        parent
-            .spawn_bundle(spawn_text("Wind:", game_field.font.clone(), 110.0))
-            .insert(WindPowerText);
+        parent.spawn((
+            spawn_text("Wind:", game_field.font.clone(), 110.0),
+            WindPowerText,
+        ));
 
         // Player number
-        parent
-            .spawn_bundle(spawn_text("Player:", game_field.font.clone(), 110.0))
-            .insert(PlayerNumberText);
+        parent.spawn((
+            spawn_text("Player:", game_field.font.clone(), 110.0),
+            PlayerNumberText,
+        ));
 
         // Tank health
-        parent
-            .spawn_bundle(spawn_text("Health:", game_field.font.clone(), 120.0))
-            .insert(TankHealthText);
+        parent.spawn((
+            spawn_text("Health:", game_field.font.clone(), 120.0),
+            TankHealthText,
+        ));
     });
 }
 

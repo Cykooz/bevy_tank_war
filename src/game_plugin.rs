@@ -35,24 +35,26 @@ impl Plugin for TankWarGamePlugin {
     }
 }
 
-fn setup_camera(mut commands: Commands, window: Res<WindowDescriptor>) {
-    let width = window.width as f32;
-    let height = window.height as f32;
+fn setup_camera(mut commands: Commands, windows: Res<Windows>) {
+    let window = windows.primary();
+    let width = window.width();
+    let height = window.height();
 
     let mut camera = Camera2dBundle::default();
     camera.transform.translation =
         Vec3::new(width / 2., height / 2., camera.transform.translation.z);
-    commands.spawn_bundle(camera);
+    commands.spawn(camera);
 }
 
 fn setup_game_field(
     mut commands: Commands,
     mut textures: ResMut<Assets<Image>>,
     asset_server: Res<AssetServer>,
-    window: Res<WindowDescriptor>,
+    windows: Res<Windows>,
 ) {
-    let width = window.width;
-    let height = window.height - 30.;
+    let window = windows.primary();
+    let width = window.width();
+    let height = window.height() - 30.;
 
     let field_width = (width - 2.) as u16;
     let field_height = (height - 2.) as u16;
@@ -63,7 +65,7 @@ fn setup_game_field(
         origin: RectangleOrigin::BottomLeft,
     };
     let border_color = Color::rgb(1., 1., 1.);
-    commands.spawn_bundle(GeometryBuilder::build_as(
+    commands.spawn(GeometryBuilder::build_as(
         &border,
         DrawMode::Stroke(StrokeMode {
             options: StrokeOptions::default(),
@@ -75,12 +77,12 @@ fn setup_game_field(
     // let parent_entity = commands
     //     .spawn_bundle((
     //         Transform::from_translation(Vec3::new(0., 0., 0.)),
-    //         GlobalTransform::identity(),
+    //         GlobalTransform::IDENTITY,
     //     ))
     //     .id();
 
     let parent_entity = commands
-        .spawn_bundle(SpatialBundle {
+        .spawn(SpatialBundle {
             transform: Transform::from_translation(Vec3::new(0., 0., 0.)),
             visibility: Visibility { is_visible: true },
             ..default()
@@ -92,12 +94,14 @@ fn setup_game_field(
         landscape::Landscape::new(field_width, field_height, &mut textures).unwrap();
     let position = Vec3::new(field_width as f32 / 2., field_height as f32 / 2., 0.);
     let landscape_entity = commands
-        .spawn_bundle(SpriteBundle {
-            texture: game_landscape.texture_handle(),
-            transform: Transform::from_translation(position),
-            ..Default::default()
-        })
-        .insert(LandscapeSprite)
+        .spawn((
+            SpriteBundle {
+                texture: game_landscape.texture_handle(),
+                transform: Transform::from_translation(position),
+                ..Default::default()
+            },
+            LandscapeSprite,
+        ))
         .id();
     commands.entity(parent_entity).add_child(landscape_entity);
 

@@ -21,6 +21,7 @@ impl Default for GameState {
     }
 }
 
+#[derive(Resource)]
 pub struct GameField {
     pub width: u16,
     pub height: u16,

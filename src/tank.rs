@@ -6,6 +6,7 @@ use crate::ballistics::Ballistics;
 use crate::components::{Angle, Position, ROUND_SETUP};
 use crate::explosion::spawn_explosion;
 use crate::game_field::{GameField, GameState};
+use crate::geometry::rect::MyRect;
 use crate::geometry::Ellipse;
 use crate::input::InputWithRepeating;
 use crate::landscape;
@@ -157,9 +158,9 @@ impl Tank {
     }
 
     #[inline]
-    pub fn body_rect(&self, position: Vec2) -> UiRect<f32> {
+    pub fn body_rect(&self, position: Vec2) -> MyRect {
         let half_size = TANK_SIZE / 2.;
-        UiRect {
+        MyRect {
             left: position.x - half_size,
             right: position.x + half_size,
             top: position.y + half_size,
@@ -264,7 +265,6 @@ struct TankBundle {
     health: Health,
     position: Position,
     tank_throwing: TankThrowing,
-    #[bundle]
     sprite: SpriteBundle,
 }
 
@@ -294,7 +294,6 @@ impl TankBundle {
 struct TankGunBundle {
     gun: TankGun,
     angle: Angle,
-    #[bundle]
     sprite: SpriteBundle,
 }
 
@@ -335,13 +334,13 @@ fn setup_tanks(mut commands: Commands, mut game_field: ResMut<GameField>) {
         let tank_position = start_position + Vec2::new(size_between_tanks * i as f32, 0.);
 
         let tank_entity = commands
-            .spawn_bundle(TankBundle::new(
+            .spawn(TankBundle::new(
                 player_number,
                 tank_position,
                 tank_material.clone(),
             ))
             .with_children(|parent| {
-                parent.spawn_bundle(TankGunBundle::new(gun_material.clone()));
+                parent.spawn(TankGunBundle::new(gun_material.clone()));
             })
             .id();
         if i == 0 {

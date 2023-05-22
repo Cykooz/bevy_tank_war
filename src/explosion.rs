@@ -6,6 +6,7 @@ use itertools::Itertools;
 
 use crate::components::{Opacity, Position, Scale, POST_GAME_UPDATE};
 use crate::game_field::{GameField, GameState};
+use crate::geometry::rect::MyRect;
 use crate::geometry::Circle;
 use crate::landscape::Landscape;
 use crate::tank::{Health, Tank};
@@ -83,7 +84,7 @@ impl Explosion {
         self.landscape_updated = true;
     }
 
-    pub fn get_intersection_percents(&self, position: Vec2, bound: UiRect<f32>) -> u8 {
+    pub fn get_intersection_percents(&self, position: Vec2, bound: MyRect) -> u8 {
         let bound_area = ((bound.right - bound.left) * (bound.top - bound.bottom)).abs();
         if bound_area > 0.0 {
             let circle = Circle::new(position, self.max_radius);
@@ -117,11 +118,13 @@ pub fn spawn_explosion(commands: &mut Commands, game_field: &GameField, position
     );
 
     let explosion_entity = commands
-        .spawn_bundle(explosion_bundle)
-        .insert(explosion)
-        .insert(Position(position))
-        .insert(Scale(scale))
-        .insert(Opacity(1.))
+        .spawn((
+            explosion_bundle,
+            explosion,
+            Position(position),
+            Scale(scale),
+            Opacity(1.),
+        ))
         .id();
     commands
         .entity(game_field.parent_entity)
