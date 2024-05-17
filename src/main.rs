@@ -8,16 +8,15 @@ fn main() {
     // env_logger::init();
 
     App::new()
-        .insert_resource(Msaa { samples: 4 })
+        // .insert_resource(Msaa { samples: 4 })
         .add_plugins(DefaultPlugins.set(WindowPlugin {
-            window: WindowDescriptor {
+            primary_window: Some(Window {
                 title: "Tank War - Rust edition".to_string(),
-                width: 1024.,
-                height: 768.,
+                resolution: (1024., 768.).into(),
                 present_mode: PresentMode::AutoNoVsync,
                 resizable: false,
                 ..default()
-            },
+            }),
             ..default()
         }))
         // // Adds frame time diagnostics
@@ -27,6 +26,6 @@ fn main() {
         //     debug: true,
         //     ..Default::default()
         // })
-        .add_plugin(TankWarGamePlugin)
+        .add_plugins(TankWarGamePlugin)
         .run();
 }

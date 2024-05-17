@@ -10,18 +10,18 @@ use crate::game_field::GameField;
 use crate::tank::Tank;
 
 const TIME_SCALE: f32 = 3.0;
-pub const MISSILE_MOVED_LABEL: &str = "missile_moved";
 
 pub struct MissilesPlugin;
 
 impl Plugin for MissilesPlugin {
     fn build(&self, app: &mut App) {
         app.add_event::<MissileMovedEvent>()
-            .add_system(missile_moving_system.label(MISSILE_MOVED_LABEL));
-        //.add_system(missile_moving_system2.system().label(MISSILE_MOVED_LABEL));
+            .add_systems(Update, missile_moving_system2)
+            .add_systems(PostUpdate, despawn_dead_missiles);
     }
 }
 
+#[derive(Event)]
 pub struct MissileMovedEvent {
     pub missile: Entity,
     pub path: Vec<(i32, i32)>,
@@ -29,6 +29,12 @@ pub struct MissileMovedEvent {
 
 pub trait HasCollision {
     fn has_collision(&self, entity_position: Vec2, point: Vec2) -> bool;
+}
+
+#[derive(Debug, Default, Clone, Copy, Component)]
+struct DeadPosition {
+    x: i32,
+    y: i32,
 }
 
 #[derive(Debug, Clone, Copy, Component)]
@@ -72,16 +78,20 @@ pub fn spawn_missile(commands: &mut Commands, game_field: &GameField, missile: M
         radius: 1.5,
         ..shapes::Circle::default()
     };
-    let missile_bundle = GeometryBuilder::build_as(
-        &missile_circle,
-        DrawMode::Fill(FillMode {
-            options: FillOptions::default(),
-            color: missile_color,
-        }),
-        Transform::from_translation(Vec3::new(position.x, position.y, 1.)),
-    );
+    let missile_bundle = ShapeBundle {
+        path: GeometryBuilder::build_as(&missile_circle),
+        spatial: SpatialBundle::from_transform(Transform::from_translation(Vec3::new(
+            position.x, position.y, 1.,
+        ))),
+        ..Default::default()
+    };
     let missile_entity = commands
-        .spawn((missile_bundle, missile, Position(position)))
+        .spawn((
+            missile_bundle,
+            Fill::color(missile_color),
+            missile,
+            Position(position),
+        ))
         .id();
     commands
         .entity(game_field.parent_entity)
@@ -91,7 +101,6 @@ pub fn spawn_missile(commands: &mut Commands, game_field: &GameField, missile: M
 pub fn missile_moving_system(
     mut commands: Commands,
     game_field: Res<GameField>,
-    audio: Res<Audio>,
     tank_position_query: Query<(&Tank, &Position), Without<Missile>>,
     mut missile_query: Query<(Entity, &mut Missile, &mut Position)>,
 ) {
@@ -111,9 +120,14 @@ pub fn missile_moving_system(
         missile_position.0 = current_position;
 
         if is_hit {
-            commands.entity(missile_entity).despawn();
-            spawn_explosion(&mut commands, &game_field, current_position);
-            audio.play(game_field.explosion_sound.clone());
+            kill_missile(
+                &mut commands,
+                missile_entity,
+                current_position.x as i32,
+                current_position.y as i32,
+            );
+            // commands.entity(missile_entity).despawn();
+            // spawn_explosion(&mut commands, &game_field, current_position);
         }
     }
 }
@@ -126,6 +140,7 @@ pub fn missile_moving_system2(
     let landscape = &game_field.landscape;
     let size = landscape.size();
     let borders = (size.0 as i32, size.1 as i32);
+
     for (missile_entity, mut missile, mut missile_position) in missile_query.iter_mut() {
         let mut path: Vec<(i32, i32)> = Vec::new();
         missile.update(borders, |x, y| {
@@ -139,7 +154,28 @@ pub fn missile_moving_system2(
             ev_missile_moved.send(MissileMovedEvent {
                 missile: missile_entity,
                 path,
-            })
+            });
         }
+    }
+}
+
+pub fn kill_missile(commands: &mut Commands, entity_id: Entity, x: i32, y: i32) {
+    if let Some(mut entity) = commands.get_entity(entity_id) {
+        entity.try_insert(DeadPosition { x, y });
+    }
+}
+
+fn despawn_dead_missiles(
+    mut commands: Commands,
+    game_field: Res<GameField>,
+    query: Query<(Entity, &DeadPosition), With<Missile>>,
+) {
+    for (entity, dead_pos) in query.iter() {
+        commands.entity(entity).despawn_recursive();
+        spawn_explosion(
+            &mut commands,
+            &game_field,
+            Vec2::new(dead_pos.x as f32, dead_pos.y as f32),
+        );
     }
 }

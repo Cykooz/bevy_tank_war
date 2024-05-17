@@ -22,7 +22,7 @@ impl<T> InputWithRepeating<T>
 where
     T: Copy + Eq + Hash + Send + Sync + 'static,
 {
-    pub fn pressed(&mut self, input: &Input<T>, key_code: T) -> bool {
+    pub fn pressed(&mut self, input: &ButtonInput<T>, key_code: T) -> bool {
         if input.pressed(key_code) {
             let now = Instant::now();
             if let Some(next_tick) = self.next_tick.get_mut(&key_code) {

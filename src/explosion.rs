@@ -2,14 +2,11 @@ use std::time::Instant;
 
 use bevy::prelude::*;
 use bevy_prototype_lyon::prelude::*;
-use itertools::Itertools;
 
-use crate::components::{Opacity, Position, Scale, POST_GAME_UPDATE};
-use crate::game_field::{GameField, GameState};
+use crate::components::{Opacity, Position, Scale};
+use crate::game_field::GameField;
 use crate::geometry::rect::MyRect;
 use crate::geometry::Circle;
-use crate::landscape::Landscape;
-use crate::tank::{Health, Tank};
 
 const SPEED: f32 = 150.0;
 
@@ -17,8 +14,11 @@ pub struct ExplosionPlugin;
 
 impl Plugin for ExplosionPlugin {
     fn build(&self, app: &mut App) {
-        app.add_system(update_explosion_system)
-            .add_system_to_stage(POST_GAME_UPDATE, update_explosion_alpha_system);
+        app.add_event::<ExplosionHitEvent>()
+            .add_event::<ExplosionMaxRadiusEvent>()
+            .add_event::<ExplosionsFinishedEvent>()
+            .add_systems(Update, update_explosion_system)
+            .add_systems(PostUpdate, update_explosion_alpha_system);
     }
 }
 
@@ -27,8 +27,23 @@ pub struct Explosion {
     created: Instant,
     max_radius: f32,
     pub cur_radius: f32,
-    landscape_updated: bool,
+    max_radius_passed: bool,
 }
+
+#[derive(Event)]
+pub struct ExplosionHitEvent {
+    pub explosion: Explosion,
+    pub position: Vec2,
+}
+
+#[derive(Event)]
+pub struct ExplosionMaxRadiusEvent {
+    pub position: Vec2,
+    pub max_radius: f32,
+}
+
+#[derive(Event)]
+pub struct ExplosionsFinishedEvent;
 
 impl Explosion {
     pub fn new(max_radius: f32) -> Self {
@@ -36,52 +51,8 @@ impl Explosion {
             created: Instant::now(),
             max_radius,
             cur_radius: 0.0,
-            landscape_updated: false,
+            max_radius_passed: false,
         }
-    }
-
-    fn destroy_landscape(&mut self, position: Vec2, landscape: &mut Landscape) {
-        let mut landscape_changed = false;
-        let circle = line_drawing::BresenhamCircle::new(
-            position.x as i32,
-            position.y as i32,
-            self.max_radius as i32 - 1,
-        );
-        for points_iter in &circle.chunks(4) {
-            let points: Vec<(i32, i32)> = points_iter.step_by(2).collect();
-            if points.len() != 2 {
-                break;
-            }
-            let (x1, y1) = points[0];
-            let (x2, y2) = points[1];
-            let x = x1.min(x2).max(0);
-            let len = (x1.max(x2).max(0) - x) as u16;
-            if len == 0 {
-                continue;
-            }
-            for &y in [y1, y2].iter() {
-                if let Some(pixels) = landscape.get_pixels_line_mut((x, y), len) {
-                    let changed_count: u32 = pixels
-                        .iter_mut()
-                        .map(|c| {
-                            if *c == 0 {
-                                0
-                            } else {
-                                *c = 0;
-                                1
-                            }
-                        })
-                        .sum();
-                    if changed_count > 0 {
-                        landscape_changed = true;
-                    }
-                }
-            }
-        }
-        if landscape_changed {
-            landscape.set_changed();
-        }
-        self.landscape_updated = true;
     }
 
     pub fn get_intersection_percents(&self, position: Vec2, bound: MyRect) -> u8 {
@@ -108,18 +79,18 @@ pub fn spawn_explosion(commands: &mut Commands, game_field: &GameField, position
         radius: 1000.,
         ..shapes::Circle::default()
     };
-    let explosion_bundle = GeometryBuilder::build_as(
-        &explosion_circle,
-        DrawMode::Fill(FillMode {
-            options: FillOptions::default(),
-            color,
-        }),
-        Transform::from_translation(Vec3::new(position.x, position.y, 2.)),
-    );
+    let explosion_bundle = ShapeBundle {
+        path: GeometryBuilder::build_as(&explosion_circle),
+        spatial: SpatialBundle::from_transform(Transform::from_translation(Vec3::new(
+            position.x, position.y, 2.,
+        ))),
+        ..default()
+    };
 
     let explosion_entity = commands
         .spawn((
             explosion_bundle,
+            Fill::color(color),
             explosion,
             Position(position),
             Scale(scale),
@@ -129,13 +100,18 @@ pub fn spawn_explosion(commands: &mut Commands, game_field: &GameField, position
     commands
         .entity(game_field.parent_entity)
         .add_child(explosion_entity);
+    commands.spawn(AudioBundle {
+        source: game_field.explosion_sound.clone(),
+        ..Default::default()
+    });
 }
 
 pub fn update_explosion_system(
     mut commands: Commands,
-    mut game_field: ResMut<GameField>,
     mut explosions_query: Query<(&mut Explosion, &mut Scale, &Position, &mut Opacity, Entity)>,
-    mut tanks_query: Query<(&Tank, &mut Health, &Position)>,
+    mut hit_events: EventWriter<ExplosionHitEvent>,
+    mut radius_events: EventWriter<ExplosionMaxRadiusEvent>,
+    mut finish_events: EventWriter<ExplosionsFinishedEvent>,
 ) {
     let mut total_explosions: usize = 0;
     let mut remove_explosions: usize = 0;
@@ -158,39 +134,33 @@ pub fn update_explosion_system(
             opacity.0 = cur_opacity;
         }
 
-        if !explosion.landscape_updated && radius >= explosion.max_radius {
-            explosion.destroy_landscape(explosion_pos, &mut game_field.landscape);
+        if !explosion.max_radius_passed && radius >= explosion.max_radius {
+            radius_events.send(ExplosionMaxRadiusEvent {
+                position: explosion_pos,
+                max_radius: explosion.max_radius,
+            });
+            explosion.max_radius_passed = true;
         }
 
         if opacity.0 == 0. {
             // Remove explosion entity
             commands.entity(entity).despawn();
-            debug!("Explosion removed");
             remove_explosions += 1;
-
-            // Check intersection of explosion with tanks and decrease its health.
-            for (tank, mut health, &Position(tank_position)) in tanks_query.iter_mut() {
-                let percents = explosion
-                    .get_intersection_percents(explosion_pos, tank.body_rect(tank_position));
-                if percents > 0 {
-                    health.damage(percents);
-                }
-            }
+            hit_events.send(ExplosionHitEvent {
+                explosion: *explosion,
+                position: explosion_pos,
+            });
+            debug!("Explosion removed");
         }
     }
 
     if total_explosions > 0 && total_explosions == remove_explosions {
-        game_field.landscape.subsidence();
-        game_field.state = GameState::Subsidence;
+        finish_events.send(ExplosionsFinishedEvent);
     }
 }
 
-pub fn update_explosion_alpha_system(
-    mut query: Query<(&mut DrawMode, &Opacity), (Changed<Opacity>,)>,
-) {
-    for (mut draw_mode, opacity) in query.iter_mut() {
-        if let DrawMode::Fill(ref mut mode) = draw_mode.as_mut() {
-            mode.color.set_a(opacity.0);
-        }
+pub fn update_explosion_alpha_system(mut query: Query<(&Opacity, &mut Fill), Changed<Opacity>>) {
+    for (opacity, mut fill) in query.iter_mut() {
+        fill.color.set_a(opacity.0);
     }
 }

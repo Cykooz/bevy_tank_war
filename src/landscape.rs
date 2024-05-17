@@ -6,9 +6,10 @@ use itertools::Itertools;
 use noise::{self, Fbm, MultiFractal, NoiseFn, Seedable};
 use rand::Rng;
 
-use crate::explosion::spawn_explosion;
-use crate::game_field::GameField;
+use crate::explosion::{ExplosionMaxRadiusEvent, ExplosionsFinishedEvent};
+use crate::game_field::{GameField, GameState};
 use crate::missile;
+use crate::missile::kill_missile;
 use crate::G;
 
 const TIME_SCALE: f32 = 3.0;
@@ -18,12 +19,22 @@ pub struct LandscapePlugin;
 impl Plugin for LandscapePlugin {
     fn build(&self, app: &mut App) {
         app.add_event::<SubsidenceFinishedEvent>()
-            .add_system(update_landscape)
-            .add_system(update_landscape_texture)
-            .add_system(missile_collides_with_landscape_system.after(missile::MISSILE_MOVED_LABEL));
+            .add_systems(
+                Update,
+                (
+                    check_missile_collides_with_landscape_system,
+                    destroy_by_explosion_system,
+                    run_subsidence_after_explosions_system,
+                ),
+            )
+            .add_systems(
+                PostUpdate,
+                (update_landscape_system, update_landscape_texture_system).chain(),
+            );
     }
 }
 
+#[derive(Event)]
 pub struct SubsidenceFinishedEvent;
 
 #[derive(Debug)]
@@ -65,6 +76,7 @@ impl Landscape {
             TextureDimension::D2,
             vec![0u8; res_size * 4],
             TextureFormat::Rgba8UnormSrgb,
+            Default::default(),
         );
 
         let mut rng = rand::thread_rng();
@@ -246,9 +258,49 @@ impl Landscape {
 
         false
     }
+
+    pub fn destroy_circle(&mut self, position: Vec2, radius: i32) {
+        let mut landscape_changed = false;
+        let circle =
+            line_drawing::BresenhamCircle::new(position.x as i32, position.y as i32, radius - 1);
+        for points_iter in &circle.chunks(4) {
+            let points: Vec<(i32, i32)> = points_iter.step_by(2).collect();
+            if points.len() != 2 {
+                break;
+            }
+            let (x1, y1) = points[0];
+            let (x2, y2) = points[1];
+            let x = x1.min(x2).max(0);
+            let len = (x1.max(x2).max(0) - x) as u16;
+            if len == 0 {
+                continue;
+            }
+            for &y in [y1, y2].iter() {
+                if let Some(pixels) = self.get_pixels_line_mut((x, y), len) {
+                    let changed_count: u32 = pixels
+                        .iter_mut()
+                        .map(|c| {
+                            if *c == 0 {
+                                0
+                            } else {
+                                *c = 0;
+                                1
+                            }
+                        })
+                        .sum();
+                    if changed_count > 0 {
+                        landscape_changed = true;
+                    }
+                }
+            }
+        }
+        if landscape_changed {
+            self.set_changed();
+        }
+    }
 }
 
-pub fn update_landscape(
+pub fn update_landscape_system(
     mut game_field: ResMut<GameField>,
     mut finished_event: EventWriter<SubsidenceFinishedEvent>,
 ) {
@@ -258,7 +310,7 @@ pub fn update_landscape(
     }
 }
 
-pub fn update_landscape_texture(
+pub fn update_landscape_texture_system(
     mut textures: ResMut<Assets<Image>>,
     mut game_field: ResMut<GameField>,
 ) {
@@ -276,7 +328,7 @@ pub fn update_landscape_texture(
 
 pub fn scroll_landscape(
     time: Res<Time>,
-    keyboard_input: ResMut<Input<KeyCode>>,
+    keyboard_input: ResMut<ButtonInput<KeyCode>>,
     mut game_field: ResMut<GameField>,
 ) {
     let landscape = &mut game_field.landscape;
@@ -285,21 +337,21 @@ pub fn scroll_landscape(
     const SPEED: f64 = 1.;
     let mut changed = false;
 
-    if keyboard_input.pressed(KeyCode::Left) {
+    if keyboard_input.pressed(KeyCode::ArrowLeft) {
         landscape.dx -= SPEED;
         changed = true;
     }
-    if keyboard_input.pressed(KeyCode::Right) {
+    if keyboard_input.pressed(KeyCode::ArrowRight) {
         landscape.dx += SPEED;
         changed = true;
     }
 
-    if keyboard_input.just_pressed(KeyCode::Up) {
+    if keyboard_input.just_pressed(KeyCode::ArrowUp) {
         let seed = landscape.seed().wrapping_add(1);
         landscape.set_seed(seed);
         changed = true;
     }
-    if keyboard_input.just_pressed(KeyCode::Down) {
+    if keyboard_input.just_pressed(KeyCode::ArrowDown) {
         let seed = landscape.seed().wrapping_sub(1);
         landscape.set_seed(seed);
         changed = true;
@@ -311,22 +363,38 @@ pub fn scroll_landscape(
     }
 }
 
-pub fn missile_collides_with_landscape_system(
+pub fn check_missile_collides_with_landscape_system(
     mut commands: Commands,
     game_field: Res<GameField>,
-    audio: Res<Audio>,
     mut ev_missile_moved: EventReader<missile::MissileMovedEvent>,
 ) {
     let landscape = &game_field.landscape;
-    for ev in ev_missile_moved.iter() {
+    for ev in ev_missile_moved.read() {
         for &(x, y) in ev.path.iter() {
             if landscape.is_not_empty(x, y) {
                 debug!("Hit to landscape: {:?}", (x, y));
-                commands.entity(ev.missile).despawn();
-                spawn_explosion(&mut commands, &game_field, Vec2::new(x as f32, y as f32));
-                audio.play(game_field.explosion_sound.clone());
+                kill_missile(&mut commands, ev.missile, x, y);
                 break;
             }
         }
+    }
+}
+
+fn destroy_by_explosion_system(
+    mut game_field: ResMut<GameField>,
+    mut radius_events: EventReader<ExplosionMaxRadiusEvent>,
+) {
+    let landscape = &mut game_field.landscape;
+    for event in radius_events.read() {
+        landscape.destroy_circle(event.position, event.max_radius as i32)
+    }
+}
+
+fn run_subsidence_after_explosions_system(
+    mut game_field: ResMut<GameField>,
+    mut finish_events: EventReader<ExplosionsFinishedEvent>,
+) {
+    if finish_events.read().count() > 0 {
+        game_field.landscape.subsidence();
     }
 }

@@ -7,14 +7,14 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-bevy = { version = "0.9.0", features = ["vorbis"] }
-rand = { version = "0.8.5", features = ["small_rng"] }
+bevy = { version = "0.13", features = ["vorbis"] }
+rand = { version = "0.8", features = ["small_rng"] }
 noise = "0.7.0"
-itertools = "0.10.3"
-bevy_prototype_lyon = "0.7.1"
+itertools = "0.13"
+bevy_prototype_lyon = "0.11"
 bytecount = "0.6.3"
-env_logger = "0.9.0"
-line_drawing = "1.0.0"
+env_logger = "0.11"
+line_drawing = "1.0"
 
 
 [profile.dev.package.'*']
@@ -24,4 +24,5 @@ opt-level = 3
 [profile.release]
 #lto = true
 opt-level = 3
+incremental = true
 #codegen-units = 1

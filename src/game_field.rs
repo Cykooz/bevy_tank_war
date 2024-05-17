@@ -30,8 +30,7 @@ pub struct GameField {
     pub wind_power: f32,
     pub player_numbers: Vec<u8>,
     pub tanks: Vec<Option<Entity>>,
-    pub current_tank: usize,
-    pub state: GameState,
+    pub current_tank: Option<usize>,
     pub number_of_iteration: usize,
     pub font: Handle<Font>,
     pub tank_texture: Handle<Image>,
@@ -46,9 +45,8 @@ impl GameField {
         player_numbers.shuffle(&mut rand::thread_rng());
         self.tanks.clear();
         self.player_numbers = player_numbers;
-        self.state = GameState::Starting;
         self.number_of_iteration = 0;
-        self.current_tank = 0;
+        self.current_tank = None;
         self.change_wind();
     }
 
@@ -57,14 +55,22 @@ impl GameField {
     }
 
     pub fn switch_current_tank(&mut self) -> Option<Entity> {
-        let mut current_tank = self.current_tank;
-        for _ in 0..self.tanks.len() {
-            current_tank += 1;
-            if current_tank >= self.tanks.len() {
-                current_tank = 0;
+        if let Some(mut current_tank) = self.current_tank {
+            for _ in 0..self.tanks.len() {
+                current_tank += 1;
+                if current_tank >= self.tanks.len() {
+                    current_tank = 0;
+                }
+                if let Some(entity) = self.tanks[current_tank] {
+                    self.current_tank = Some(current_tank);
+                    return Some(entity);
+                }
             }
-            if let Some(entity) = self.tanks[current_tank] {
-                self.current_tank = current_tank;
+        } else if self.tanks.len() > 0 {
+            // The current tank is not selected yet.
+            // Select the first tank as current.
+            if let Some(entity) = self.tanks[0] {
+                self.current_tank = Some(0);
                 return Some(entity);
             }
         }
