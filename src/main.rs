@@ -1,10 +1,9 @@
 use bevy::prelude::*;
-use bevy::render::render_resource::{AsBindGroup, ShaderRef};
-use bevy::sprite::{Material2d, Material2dPlugin, MaterialMesh2dBundle};
+use bevy::sprite::MaterialMesh2dBundle;
 use bevy::window::{PresentMode, PrimaryWindow};
 
 //use bevy::diagnostic::LogDiagnosticsPlugin;
-use bevy_tank_war::TankWarGamePlugin;
+use bevy_tank_war::{GlowMaterial, HueOffsetMaterial, MaterialsPlugin, TankWarGamePlugin};
 
 fn main() {
     // env_logger::init();
@@ -29,7 +28,13 @@ fn main() {
                     ..default()
                 }),
         )
-        .add_systems(Startup, (setup_camera, setup_mesh))
+        .add_systems(
+            Startup,
+            (
+                setup_camera,
+                //setup_mesh
+            ),
+        )
         // // Adds frame time diagnostics
         // .add_plugin(FrameTimeDiagnosticsPlugin::default())
         // Adds a system that prints diagnostics to the console
@@ -38,9 +43,8 @@ fn main() {
         //     ..Default::default()
         // })
         .add_plugins((
-            //TankWarGamePlugin,
-            Material2dPlugin::<GlowMaterial>::default(),
-            Material2dPlugin::<HueOffsetMaterial>::default(),
+            TankWarGamePlugin,
+            //MaterialsPlugin
         ))
         .run();
 }
@@ -84,40 +88,4 @@ pub fn setup_mesh(
         }),
         ..Default::default()
     });
-}
-
-#[derive(Asset, TypePath, AsBindGroup, Debug, Clone)]
-pub struct GlowMaterial {
-    #[uniform(0)]
-    color: Color,
-    #[uniform(1)]
-    intensity: f32,
-    #[texture(2)]
-    #[sampler(3)]
-    texture: Handle<Image>,
-}
-
-// All functions on `Material2d` have default impls. You only need to implement the
-// functions that are relevant for your material.
-impl Material2d for GlowMaterial {
-    fn fragment_shader() -> ShaderRef {
-        "shaders/glow_material.wgsl".into()
-    }
-}
-
-#[derive(Asset, TypePath, AsBindGroup, Debug, Clone)]
-pub struct HueOffsetMaterial {
-    #[uniform(0)]
-    offset: f32,
-    #[texture(1)]
-    #[sampler(2)]
-    texture: Handle<Image>,
-}
-
-// All functions on `Material2d` have default impls. You only need to implement the
-// functions that are relevant for your material.
-impl Material2d for HueOffsetMaterial {
-    fn fragment_shader() -> ShaderRef {
-        "shaders/hue_material.wgsl".into()
-    }
 }
