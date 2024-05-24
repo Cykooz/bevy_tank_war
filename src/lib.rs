@@ -13,6 +13,5 @@ mod collider;
 mod input;
 mod status_panel;
 mod tank;
-
 pub const G: f32 = 9.80665;
 pub const MAX_PLAYERS_COUNT: u8 = 5;

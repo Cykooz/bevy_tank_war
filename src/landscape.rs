@@ -7,7 +7,7 @@ use noise::{self, Fbm, MultiFractal, NoiseFn, Seedable};
 use rand::Rng;
 
 use crate::explosion::{ExplosionMaxRadiusEvent, ExplosionsFinishedEvent};
-use crate::game_field::{GameField, GameState};
+use crate::game_field::GameField;
 use crate::missile;
 use crate::missile::kill_missile;
 use crate::G;
@@ -333,7 +333,6 @@ pub fn scroll_landscape(
 ) {
     let landscape = &mut game_field.landscape;
 
-    let delta_seconds = f64::min(0.2, time.delta_seconds_f64());
     const SPEED: f64 = 1.;
     let mut changed = false;
 

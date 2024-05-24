@@ -4,23 +4,6 @@ use rand::Rng;
 
 use crate::landscape::Landscape;
 
-#[derive(Debug, Clone, Copy)]
-pub enum GameState {
-    Starting,
-    Playing,
-    SwitchTank,
-    TanksThrowing,
-    Aiming,
-    Subsidence,
-    Finish,
-}
-
-impl Default for GameState {
-    fn default() -> Self {
-        Self::Starting
-    }
-}
-
 #[derive(Resource)]
 pub struct GameField {
     pub width: u16,
@@ -66,7 +49,7 @@ impl GameField {
                     return Some(entity);
                 }
             }
-        } else if self.tanks.len() > 0 {
+        } else if !self.tanks.is_empty() {
             // The current tank is not selected yet.
             // Select the first tank as current.
             if let Some(entity) = self.tanks[0] {

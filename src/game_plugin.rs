@@ -5,7 +5,7 @@ use bevy::window::PrimaryWindow;
 use bevy_prototype_lyon::prelude::*;
 
 use crate::components::{Angle, Position, Scale};
-use crate::game_field::{GameField, GameState};
+use crate::game_field::GameField;
 use crate::input::InputWithRepeating;
 use crate::missile;
 use crate::status_panel::setup_status_panel;
@@ -27,7 +27,6 @@ impl Plugin for TankWarGamePlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<InputWithRepeating<KeyCode>>()
             .init_state::<AppState>()
-            .add_systems(Startup, setup_camera)
             .add_systems(PostUpdate, (update_translation, update_scale, update_angle))
             .add_systems(PostUpdate, switch_to_aiming_system)
             .add_systems(
@@ -111,18 +110,6 @@ fn after_tank_shot_system(
         debug!("Switch to MainAction");
         next_state.set(AppState::MainAction);
     }
-}
-
-fn setup_camera(mut commands: Commands, primary_windows: Query<&Window, With<PrimaryWindow>>) {
-    let Ok(window) = primary_windows.get_single() else {
-        return;
-    };
-    let width = window.width();
-    let height = window.height();
-    let mut camera = Camera2dBundle::default();
-    camera.transform.translation =
-        Vec3::new(width / 2., height / 2., camera.transform.translation.z);
-    commands.spawn(camera);
 }
 
 pub fn setup_game_field(

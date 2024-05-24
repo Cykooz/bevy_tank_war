@@ -1,11 +1,12 @@
+use angular_units::Deg;
 use std::f32::consts::PI;
 
 use bevy::prelude::*;
 
 use crate::ballistics::Ballistics;
-use crate::components::{Angle, Position};
+use crate::components::{Angle, HueOffset, Position};
 use crate::explosion::{spawn_explosion, ExplosionHitEvent};
-use crate::game_field::{GameField, GameState};
+use crate::game_field::GameField;
 use crate::game_plugin::AppState;
 use crate::geometry::rect::MyRect;
 use crate::geometry::Ellipse;
@@ -13,6 +14,8 @@ use crate::input::InputWithRepeating;
 use crate::landscape;
 use crate::missile::{kill_missile, spawn_missile, HasCollision, Missile, MissileMovedEvent};
 use crate::{G, MAX_PLAYERS_COUNT};
+use prisma::encoding::{EncodableColor, SrgbEncoding};
+use prisma::{FromColor, Hsv, Rgb};
 
 const TANK_SIZE: f32 = 41.;
 const GUN_SIZE: f32 = 21.;
@@ -68,6 +71,7 @@ impl Plugin for TanksPlugin {
                 (
                     check_missile_collides_with_tanks_system,
                     damage_tank_by_explosion_system,
+                    set_texture_hue_system,
                 ),
             )
             .add_systems(PostUpdate, remove_dead_tank_system);
@@ -114,7 +118,6 @@ pub struct Tank {
     pub dead: bool,
     body_bounds: Vec<Ellipse>,
     gun_bounds: Vec<Ellipse>,
-    hue_offset: u16,
     gun_angle_deg: f32,
 }
 
@@ -124,7 +127,7 @@ impl Tank {
         Vec2::new(TANK_SIZE, TANK_SIZE)
     }
 
-    pub fn new(player_number: u8, hue_offset: u16) -> Tank {
+    pub fn new(player_number: u8) -> Tank {
         let body_bounds = vec![
             Ellipse::new((0., -5.5), 9.5, 9.),    // top bound
             Ellipse::new((-9.5, -13.), 10., 6.5), // left bound
@@ -139,7 +142,6 @@ impl Tank {
             player_number,
             body_bounds,
             gun_bounds,
-            hue_offset,
             gun_angle_deg: 0.0,
             power: 40.0,
             dead: false,
@@ -303,8 +305,7 @@ struct TankBundle {
 
 impl TankBundle {
     pub fn new(player_number: u8, position: Vec2, texture: Handle<Image>) -> Self {
-        let hue_offset = (player_number as u16 - 1) * (360 / MAX_PLAYERS_COUNT as u16);
-        let tank = Tank::new(player_number, hue_offset);
+        let tank = Tank::new(player_number);
         let tank_throwing = tank.throw_down(position);
         let mut transform = Transform::default();
         transform.translation.z = 0.1;
@@ -369,14 +370,17 @@ pub fn setup_tanks(mut commands: Commands, mut game_field: ResMut<GameField>) {
     for (i, &player_number) in player_numbers.iter().enumerate() {
         let tank_position = start_position + Vec2::new(size_between_tanks * i as f32, 0.);
 
+        let hue_offset = (player_number as u16 - 1) * (360 / MAX_PLAYERS_COUNT as u16);
         let tank_entity = commands
-            .spawn(TankBundle::new(
-                player_number,
-                tank_position,
-                tank_material.clone(),
+            .spawn((
+                TankBundle::new(player_number, tank_position, tank_material.clone()),
+                HueOffset(hue_offset),
             ))
             .with_children(|parent| {
-                parent.spawn(TankGunBundle::new(gun_material.clone()));
+                parent.spawn((
+                    TankGunBundle::new(gun_material.clone()),
+                    HueOffset(hue_offset),
+                ));
             })
             .id();
         if i == 0 {
@@ -611,6 +615,57 @@ fn damage_tank_by_explosion_system(
     }
 }
 
+fn set_texture_hue_system(
+    mut commands: Commands,
+    textures: ResMut<Assets<Image>>,
+    mut asset_events: EventReader<AssetEvent<Image>>,
+    images_query: Query<(Entity, &Handle<Image>, &HueOffset)>,
+    asset_server: Res<AssetServer>,
+) {
+    for event in asset_events.read() {
+        if let AssetEvent::LoadedWithDependencies { id } = event {
+            if let Some(image) = textures.get(*id) {
+                for (entity, image_handle, hue_offset) in images_query.iter() {
+                    if image_handle.id() != *id {
+                        continue;
+                    }
+                    let new_image = rotate_hue(image, hue_offset.0);
+                    commands
+                        .entity(entity)
+                        .remove::<HueOffset>()
+                        .remove::<Handle<Image>>()
+                        .insert(asset_server.add(new_image));
+                }
+            }
+        }
+    }
+}
+
+fn rotate_hue(image: &Image, hue_offset: u16) -> Image {
+    let mut new_image = image.clone();
+    for pixel in new_image.data.chunks_exact_mut(4) {
+        let mut rgb = *Rgb::new(
+            pixel[0] as f32 / 255.,
+            pixel[1] as f32 / 255.,
+            pixel[2] as f32 / 255.,
+        )
+        .srgb_encoded()
+        .decode()
+        .color();
+        let mut hsv: Hsv<f32, Deg<f32>> = Hsv::from_color(&rgb);
+        let hue = (hsv.hue() + Deg(hue_offset as f32)).0 as u32 % 360;
+        hsv.set_hue(Deg(hue as f32));
+        rgb = *Rgb::from_color(&hsv)
+            .linear()
+            .encode(SrgbEncoding::new())
+            .color();
+        pixel[0] = (rgb.red() * 255.0).min(255.).round() as u8;
+        pixel[1] = (rgb.green() * 255.0).min(255.).round() as u8;
+        pixel[2] = (rgb.blue() * 255.0).min(255.).round() as u8;
+    }
+    new_image
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -618,7 +673,7 @@ mod tests {
     #[test]
     fn test_has_collision() {
         let tank_position = Vec2::new(10.0 + TANK_SIZE / 2., 20.0 - TANK_SIZE / 2.);
-        let mut tank = Tank::new(1, 0);
+        let mut tank = Tank::new(1);
 
         let inner_points = [
             (20., 27.), // body center
